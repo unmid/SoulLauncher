@@ -2791,3 +2791,11 @@ body[data-theme='light'] .ic { filter: drop-shadow(0 1px 1px rgba(20, 26, 38, .1
   animation-iteration-count: 1 !important;
   transition-duration: .01ms !important;
 }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .home-bg-img { animation: none !important; }
+}
