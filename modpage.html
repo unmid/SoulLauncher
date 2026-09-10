@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Soul Mod Page</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#10141b; color:#eef2f8; font-family:'Segoe UI', system-ui, -apple-system, sans-serif; line-height:1.6; }
+  a { color:#f28c5c; }
+  .wrap { max-width:860px; margin:0 auto; padding:26px 22px 56px; }
+  .hero { display:flex; gap:16px; align-items:center; padding:18px; border:1px solid #2b3545; border-radius:16px; background:linear-gradient(180deg, #1b2330, #141a24); box-shadow:0 18px 50px rgba(0,0,0,.35); }
+  .hero img { width:72px; height:72px; border-radius:16px; object-fit:cover; background:#0b0e13; border:1px solid #394456; flex:none; }
+  .hero h1 { font-size:24px; line-height:1.15; letter-spacing:.2px; }
+  .hero .sub { color:#aeb8ca; font-size:13px; font-weight:600; margin-top:5px; }
+  .stats { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 8px; }
+  .pill { display:inline-flex; align-items:center; gap:7px; padding:5px 12px; border-radius:999px; border:1px solid #394456; background:#171e29; color:#c3ccdC; font-size:12px; font-weight:700; }
+  .pill strong { color:#fff; }
+  .toolbar { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0 18px; }
+  .btn { display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:10px; border:1px solid #394456; background:#1c2431; color:#fff; font-weight:800; font-size:13px; text-decoration:none; cursor:pointer; }
+  .btn.primary { background:linear-gradient(180deg, #f48452, #f26a3c); border-color:#f26a3c; }
+  .gallery { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; margin:16px 0 8px; }
+  .gallery a { display:block; border-radius:12px; overflow:hidden; border:1px solid #2b3545; background:#0b0e13; }
+  .gallery img { display:block; width:100%; height:120px; object-fit:cover; }
+  .card { margin-top:18px; padding:20px; border-radius:16px; border:1px solid #2b3545; background:#131922; }
+  .card h2 { font-size:17px; margin-bottom:10px; }
+  .markdown h1, .markdown h2, .markdown h3 { margin:20px 0 8px; line-height:1.25; }
+  .markdown h1 { font-size:22px; } .markdown h2 { font-size:19px; } .markdown h3 { font-size:16px; }
+  .markdown p { margin:10px 0; color:#cbd4e3; }
+  .markdown ul, .markdown ol { margin:10px 0 10px 24px; color:#cbd4e3; }
+  .markdown li { margin:4px 0; }
+  .markdown blockquote { margin:12px 0; padding:4px 14px; border-left:3px solid #f26a3c; color:#aeb8ca; }
+  .markdown pre { margin:12px 0; padding:12px 14px; border-radius:12px; background:#0b0e13; border:1px solid #2b3545; overflow-x:auto; }
+  .markdown code { font-family:ui-monospace, Consolas, monospace; font-size:12px; background:#0b0e13; padding:2px 6px; border-radius:6px; }
+  .markdown pre code { background:transparent; padding:0; }
+  .markdown img { max-width:100%; height:auto; border-radius:12px; margin:8px 0; border:1px solid #2b3545; }
+  .markdown table { width:100%; border-collapse:collapse; margin:12px 0; display:block; overflow-x:auto; }
+  .markdown th, .markdown td { border:1px solid #2b3545; padding:7px 10px; font-size:13px; text-align:left; }
+  .version { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:10px 0; border-top:1px solid #212a38; font-size:13px; }
+  .version:first-of-type { border-top:0; }
+  .version .name { font-weight:800; }
+  .version .meta { color:#aeb8ca; font-weight:600; font-size:12px; }
+  .status { padding:50px 20px; text-align:center; color:#aeb8ca; font-weight:700; }
+  .spinner { width:18px; height:18px; border-radius:50%; border:2px solid rgba(255,255,255,.25); border-top-color:#fff; display:inline-block; vertical-align:-4px; margin-right:8px; animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .error-card { max-width:620px; margin:70px auto; padding:26px; text-align:center; border-radius:16px; background:#171e29; border:1px solid #394456; }
+  .error-card p { color:#aeb8ca; margin:10px 0 18px; }
+</style>
+</head>
+<body>
+<main class="wrap" id="app">
+  <div class="status"><span class="spinner"></span>Loading the project page…</div>
+</main>
+<script>
+(function () {
+  const app = document.getElementById('app');
+  const params = new URLSearchParams(window.location.search);
+  const source = (params.get('source') || 'modrinth').toLowerCase();
+  const project = (params.get('project') || '').trim();
+  const kindHint = (params.get('kind') || '').trim();
+  const API = 'https://api.modrinth.com/v2';
+
+  function el(name, attrs, text) {
+    const node = document.createElement(name);
+    if (attrs) for (const key of Object.keys(attrs)) node.setAttribute(key, attrs[key]);
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function safeHttpUrl(url) {
+    try {
+      const parsed = new URL(url, window.location.href);
+      return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? parsed.toString() : '';
+    } catch (e) { return ''; }
+  }
+  function showError(title, message) {
+    app.innerHTML = '';
+    const card = el('div', { class: 'error-card' });
+    card.appendChild(el('h1', null, title));
+    card.appendChild(el('p', null, message));
+    const retry = el('button', { class: 'btn primary', type: 'button' }, 'Try again');
+    retry.addEventListener('click', () => window.location.reload());
+    card.appendChild(retry);
+    app.appendChild(card);
+  }
+  function routeFor(projectType) {
+    const route = (projectType || kindHint || 'mod').toLowerCase();
+    return ['mod', 'resourcepack', 'shader', 'datapack', 'modpack'].includes(route) ? route : 'mod';
+  }
+  function extractImageUrls(markdown) {
+    const urls = [];
+    const re = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)(?:\s+"[^"]*")?\)/g;
+    let match;
+    while ((match = re.exec(markdown || '')) !== null) {
+      const safe = safeHttpUrl(match[1]);
+      if (safe && !urls.includes(safe) && urls.length < 10) urls.push(safe);
+    }
+    return urls;
+  }
+
+  // Small safe Markdown renderer: it creates DOM nodes and permits only text,
+  // http(s) links, and http(s) images. Unknown formatting degrades to text.
+  function appendInline(parent, text) {
+    const pattern = /(`[^`]+`)|!\[([^\]]*)\]\((https?:\/\/[^\s)]+)(?:\s+"[^"]*")?\)|\[([^\]]+)\]\((https?:\/\/[^\s)]+)(?:\s+"[^"]*")?\)|(\*\*|__)(.+?)\6|(\*|_)(.+?)\8|~~(.+?)~~/g;
+    let index = 0, match;
+    function appendFormatted(container, chunk) {
+      if (!chunk) return;
+      container.appendChild(document.createTextNode(chunk));
+    }
+    while ((match = pattern.exec(text)) !== null) {
+      if (match.index > index) appendFormatted(parent, text.slice(index, match.index));
+      if (match[1]) {
+        parent.appendChild(el('code', null, match[1].slice(1, -1)));
+      } else if (match[2] !== undefined) {
+        const safe = safeHttpUrl(match[3]);
+        if (safe) parent.appendChild(el('img', { src: safe, alt: match[2], loading: 'lazy' }));
+        else appendFormatted(parent, match[0]);
+      } else if (match[4] !== undefined) {
+        const safe = safeHttpUrl(match[5]);
+        if (safe) {
+          const link = el('a', { href: safe, target: '_blank', rel: 'noopener noreferrer' });
+          appendFormatted(link, match[4]);
+          parent.appendChild(link);
+        } else appendFormatted(parent, match[0]);
+      } else if (match[6]) {
+        const strong = el('strong');
+        appendFormatted(strong, match[7]);
+        parent.appendChild(strong);
+      } else if (match[8]) {
+        const emphasis = el('em');
+        appendFormatted(emphasis, match[9]);
+        parent.appendChild(emphasis);
+      } else if (match[10]) {
+        const strike = el('s');
+        appendFormatted(strike, match[10]);
+        parent.appendChild(strike);
+      }
+      index = match.index + match[0].length;
+    }
+    if (index < text.length) appendFormatted(parent, text.slice(index));
+  }
+  function appendBlocks(parent, markdown) {
+    const lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
+    let i = 0, list = null, quote = null, table = null;
+    function closeList() { list = null; }
+    function closeQuote() { quote = null; }
+    function closeTable() { table = null; }
+    function listItem(line) {
+      const unordered = line.match(/^(\s*)[-*+]\s+(.*)$/);
+      const ordered = line.match(/^(\s*)\d+[.)]\s+(.*)$/);
+      if (!unordered && !ordered) return null;
+      return { ordered: Boolean(ordered), indent: (unordered || ordered)[1].length, text: (unordered || ordered)[2] };
+    }
+    while (i < lines.length) {
+      const line = lines[i];
+      if (/^\s*```/.test(line)) {
+        closeList(); closeQuote(); closeTable();
+        const language = line.trim().slice(3).trim();
+        const code = [];
+        i++;
+        while (i < lines.length && !/^\s*```/.test(lines[i])) { code.push(lines[i]); i++; }
+        const pre = el('pre');
+        const codeEl = el('code', language ? { 'data-language': language } : null, code.join('\n'));
+        pre.appendChild(codeEl);
+        parent.appendChild(pre);
+        i++;
+        continue;
+      }
+      if (!line.trim()) { closeList(); closeQuote(); closeTable(); i++; continue; }
+      const heading = line.match(/^(#{1,4})\s+(.*)$/);
+      if (heading) {
+        closeList(); closeQuote(); closeTable();
+        const level = Math.min(3, heading[1].length);
+        const h = el('h' + level);
+        appendInline(h, heading[2]);
+        parent.appendChild(h);
+        i++;
+        continue;
+      }
+      if (/^\s*>\s?/.test(line)) {
+        closeList(); closeTable();
+        if (!quote) { quote = el('blockquote'); parent.appendChild(quote); }
+        const p = el('p');
+        appendInline(p, line.replace(/^\s*>\s?/, ''));
+        quote.appendChild(p);
+        i++;
+        continue;
+      }
+      closeQuote();
+      if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
+        closeList(); closeTable();
+        parent.appendChild(el('hr'));
+        i++;
+        continue;
+      }
+      const item = listItem(line);
+      if (item) {
+        closeTable();
+        if (!list || list.ordered !== item.ordered || item.indent !== list.indent) {
+          list = { node: el(item.ordered ? 'ol' : 'ul'), ordered: item.ordered, indent: item.indent };
+          parent.appendChild(list.node);
+        }
+        const li = el('li');
+        appendInline(li, item.text);
+        list.node.appendChild(li);
+        i++;
+        continue;
+      }
+      closeList();
+      const cells = line.split('|').map((c) => c.trim());
+      const trimmed = cells[0] === '' ? cells.slice(1) : cells;
+      const row = trimmed[trimmed.length - 1] === '' ? trimmed.slice(0, -1) : trimmed;
+      const next = (lines[i + 1] || '').trim();
+      if (row.length > 1 && /^\|?[\s:|-]+\|?$/.test(next) && next.includes('-')) {
+        closeTable();
+        table = el('table');
+        const headRow = el('tr');
+        row.forEach((cell) => {
+          const th = el('th');
+          appendInline(th, cell);
+          headRow.appendChild(th);
+        });
+        table.appendChild(headRow);
+        parent.appendChild(table);
+        i += 2;
+        continue;
+      }
+      if (table && row.length > 1 && line.includes('|')) {
+        const bodyRow = el('tr');
+        row.forEach((cell) => {
+          const td = el('td');
+          appendInline(td, cell);
+          bodyRow.appendChild(td);
+        });
+        table.appendChild(bodyRow);
+        i++;
+        continue;
+      }
+      closeTable();
+      const p = el('p');
+      appendInline(p, line);
+      parent.appendChild(p);
+      i++;
+    }
+  }
+  function fmtDate(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+  function fmtCount(value) {
+    const n = Number(value || 0);
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return String(n);
+  }
+
+  if (source !== 'modrinth') {
+    showError('CurseForge pages cannot be embedded', 'CurseForge blocks embedded pages. Use the open-page button in Soul Launcher for the full site.');
+    return;
+  }
+  if (!project) {
+    showError('Missing project', 'This viewer needs a Modrinth project id or slug.');
+    return;
+  }
+
+  const path = `${API}/project/${encodeURIComponent(project)}`;
+  Promise.all([
+    fetch(path, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('project ' + r.status); return r.json(); }),
+    fetch(`${path}/version?limit=8`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+  ]).then(([details, versions]) => {
+    const route = routeFor(details.project_type);
+    const canonical = `https://modrinth.com/${route}/${encodeURIComponent(details.slug || project)}`;
+    app.innerHTML = '';
+    const hero = el('div', { class: 'hero' });
+    if (details.icon_url) hero.appendChild(el('img', { src: details.icon_url, alt: '' }));
+    const text = el('div');
+    text.appendChild(el('h1', null, details.title || project));
+    const sub = [];
+    if (details.slug && details.slug !== details.id) sub.push(details.slug);
+    sub.push('Modrinth · ' + route);
+    if (details.status && details.status !== 'approved') sub.push(details.status);
+    text.appendChild(el('div', { class: 'sub' }, sub.join(' · ')));
+    hero.appendChild(text);
+    app.appendChild(hero);
+
+    const stats = el('div', { class: 'stats' });
+    const items = [
+      ['Downloads', fmtCount(details.downloads)],
+      ['Followers', fmtCount(details.followers)],
+      ['Updated', fmtDate(details.updated)],
+      ['Created', fmtDate(details.published)],
+      ['License', (details.license && (details.license.name || details.license.id)) || '—'],
+    ];
+    if (Array.isArray(details.loaders) && details.loaders.length) items.splice(2, 0, ['Loaders', details.loaders.join(', ')]);
+    items.forEach(([label, value]) => {
+      const pill = el('span', { class: 'pill' }, label + ' ');
+      pill.appendChild(el('strong', null, value));
+      stats.appendChild(pill);
+    });
+    app.appendChild(stats);
+
+    const toolbar = el('div', { class: 'toolbar' });
+    const open = el('a', { class: 'btn primary', href: canonical, target: '_blank', rel: 'noopener noreferrer' }, 'Open on Modrinth');
+    toolbar.appendChild(open);
+    app.appendChild(toolbar);
+
+    const images = extractImageUrls(details.body);
+    if (images.length) {
+      const gallery = el('div', { class: 'gallery' });
+      images.slice(0, 6).forEach((url, index) => {
+        const link = el('a', { href: url, target: '_blank', rel: 'noopener noreferrer' });
+        link.appendChild(el('img', { src: url, alt: 'Project screenshot ' + (index + 1), loading: 'lazy' }));
+        gallery.appendChild(link);
+      });
+      app.appendChild(gallery);
+    }
+
+    const description = el('section', { class: 'card' });
+    description.appendChild(el('h2', null, 'About this project'));
+    const body = el('div', { class: 'markdown' });
+    appendBlocks(body, details.body || details.description || 'No description provided.');
+    description.appendChild(body);
+    app.appendChild(description);
+
+    if (Array.isArray(versions) && versions.length) {
+      const list = versions.slice().sort((a, b) => String(b.date_published || '').localeCompare(String(a.date_published || ''))).slice(0, 8);
+      const card = el('section', { class: 'card' });
+      card.appendChild(el('h2', null, 'Latest versions'));
+      list.forEach((version) => {
+        const row = el('div', { class: 'version' });
+        row.appendChild(el('span', { class: 'name' }, version.name || version.version_number || 'Untitled'));
+        const meta = [];
+        if (Array.isArray(version.game_versions) && version.game_versions.length) meta.push(version.game_versions.slice(0, 5).join(', ') + (version.game_versions.length > 5 ? '…' : ''));
+        if (Array.isArray(version.loaders) && version.loaders.length) meta.push(version.loaders.join(', '));
+        meta.push(fmtDate(version.date_published));
+        meta.push(fmtCount(version.downloads) + ' downloads');
+        if (version.version_type && version.version_type !== 'release') meta.push(version.version_type);
+        row.appendChild(el('span', { class: 'meta' }, meta.filter(Boolean).join(' · ')));
+        card.appendChild(row);
+      });
+      app.appendChild(card);
+    }
+  }).catch(() => {
+    showError('Project unavailable', 'Modrinth did not return this project. Check your connection, then try again.');
+  });
+})();
+</script>
+</body>
+</html>

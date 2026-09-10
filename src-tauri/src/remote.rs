@@ -1,22 +1,27 @@
-//! Remote config/content from the OL-updater GitHub repo (public).
+//! Remote config/content from the SoulLauncher GitHub repo (public).
 //! A token improves rate limits but is NOT required — fetching works with the
 //! public API alone, so revoked/expired tokens can never freeze the content.
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const UPDATER_TOKEN: &str = match option_env!("ORBIT_UPDATER_TOKEN") {
+pub const UPDATER_TOKEN: &str = match option_env!("SOUL_TOKEN") {
     Some(t) => t,
     None => "",
 };
-pub const CF_KEY: &str = match option_env!("ORBIT_CF_KEY") {
+pub const CF_KEY: &str = match option_env!("SOUL_CF_KEY") {
     Some(t) => t,
     None => "",
 };
 
-pub const REPO_BASE: &str = "https://api.github.com/repos/unmid/OL-updater/contents";
-pub const RAW_BASE: &str = "https://raw.githubusercontent.com/unmid/OL-updater/main";
-pub const RELEASES_REPO: &str = "unmid/OrbitLauncher";
+/// Everything the launcher needs lives in this one repo: server list, home
+/// pages, the mod-page iframe site, and the Soul Client zips.
+/// (Single place documenting the repo; the URLs below spell it out.)
+#[allow(dead_code)]
+pub const REPO: &str = "unmid/SoulLauncher";
+pub const REPO_BASE: &str = "https://api.github.com/repos/unmid/SoulLauncher/contents";
+pub const RAW_BASE: &str = "https://raw.githubusercontent.com/unmid/SoulLauncher/main";
+pub const RELEASES_REPO: &str = "unmid/SoulLauncher";
 
 fn now_ms() -> u64 {
     SystemTime::now()
@@ -34,7 +39,7 @@ async fn try_get(http: &reqwest::Client, url: &str, token: bool) -> Result<Strin
         .get(url)
         .header("Accept", "application/vnd.github.raw+json")
         .header("X-GitHub-Api-Version", "2022-11-28")
-        .header("User-Agent", "OrbitLauncher");
+        .header("User-Agent", "SoulLauncher");
     if token && !UPDATER_TOKEN.is_empty() {
         req = req.header("Authorization", format!("Bearer {UPDATER_TOKEN}"));
     }
@@ -50,7 +55,7 @@ async fn try_get(http: &reqwest::Client, url: &str, token: bool) -> Result<Strin
     Ok(String::from_utf8_lossy(&bytes).to_string())
 }
 
-/// Fetch a file from the updater repo. Tries, in order:
+/// Fetch a file from the SoulLauncher repo. Tries, in order:
 ///   1. the GitHub Contents API with the baked-in token (if present),
 ///   2. the same API unauthenticated (the repo is public),
 ///   3. raw.githubusercontent.com with a cache-busting query,
@@ -91,12 +96,12 @@ pub async fn fetch_updater_file(
     }
 }
 
-/// Home hero pages: looks for ol/manifest.json ("pages": ["1.html", ...]) and
+/// Home hero pages: looks for home/manifest.json ("pages": ["1.html", ...]) and
 /// downloads every page in parallel (each one cached on disk like any updater
 /// file, so the launcher still shows them offline later). Falls back to the
-/// legacy single ol.html, then to an empty list (UI shows wallpapers).
+/// single home/index.html, then to an empty list (UI shows wallpapers).
 pub async fn fetch_home_pages(http: &reqwest::Client, root: &PathBuf) -> Vec<String> {
-    if let Some(manifest) = fetch_updater_file(http, root, "ol/manifest.json").await {
+    if let Some(manifest) = fetch_updater_file(http, root, "home/manifest.json").await {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&manifest) {
             if let Some(arr) = v.get("pages").and_then(|x| x.as_array()) {
                 let names: Vec<String> = arr
@@ -111,7 +116,7 @@ pub async fn fetch_home_pages(http: &reqwest::Client, root: &PathBuf) -> Vec<Str
                     for (i, n) in names.into_iter().enumerate() {
                         let http = http.clone();
                         let root = root.clone();
-                        set.spawn(async move { (i, fetch_updater_file(&http, &root, &format!("ol/{n}")).await) });
+                        set.spawn(async move { (i, fetch_updater_file(&http, &root, &format!("home/{n}")).await) });
                     }
                     let mut pages: Vec<(usize, String)> = Vec::new();
                     while let Some(r) = set.join_next().await {
@@ -129,8 +134,8 @@ pub async fn fetch_home_pages(http: &reqwest::Client, root: &PathBuf) -> Vec<Str
             }
         }
     }
-    // legacy single-file home page
-    if let Some(h) = fetch_updater_file(http, root, "ol.html").await {
+    // single-file home page
+    if let Some(h) = fetch_updater_file(http, root, "home/index.html").await {
         if h.trim().len() > 20 {
             return vec![h];
         }

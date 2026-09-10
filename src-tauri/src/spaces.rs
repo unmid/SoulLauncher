@@ -52,6 +52,10 @@ pub struct Space {
     pub last_played: Option<u64>,
     #[serde(default)]
     pub ram_gb: Option<u32>,
+    /// Desktop shortcut path when this Space is pinned (kept so unpin can
+    /// remove the exact file, even after a rename).
+    #[serde(default)]
+    pub shortcut: Option<String>,
 }
 
 impl Space {
@@ -70,6 +74,7 @@ impl Space {
             created_at: now_secs(),
             last_played: None,
             ram_gb: None,
+            shortcut: None,
         }
     }
 }
@@ -187,7 +192,9 @@ fn default_loader() -> String {
     "vanilla".to_string()
 }
 
-pub const EXPORT_MAGIC: &str = "orbit-space/1";
+pub const EXPORT_MAGIC: &str = "soul-space/1";
+/// Older exports written by Orbit Launcher builds still load.
+pub const LEGACY_EXPORT_MAGIC: &str = "orbit-space/1";
 
 pub fn export_space_json(space: &Space) -> ExportedSpace {
     ExportedSpace {
@@ -231,9 +238,9 @@ pub fn validate_import(raw: &str) -> Result<ExportedSpace, String> {
         return Err("File is too big to be a Space".into());
     }
     let e: ExportedSpace =
-        serde_json::from_str(raw).map_err(|_| "This is not an Orbit Space file".to_string())?;
-    if e.format != EXPORT_MAGIC {
-        return Err("This is not an Orbit Space file".into());
+        serde_json::from_str(raw).map_err(|_| "This is not a Soul Space file".to_string())?;
+    if e.format != EXPORT_MAGIC && e.format != LEGACY_EXPORT_MAGIC {
+        return Err("This is not a Soul Space file".into());
     }
     ok_text(&e.name, 32, "name")?;
     if !crate::loaders::LOADER_KINDS.contains(&e.loader.as_str()) {

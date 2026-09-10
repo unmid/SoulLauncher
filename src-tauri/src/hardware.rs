@@ -31,7 +31,7 @@ pub fn scan() -> HardwareInfo {
     };
     #[cfg(windows)]
     {
-        // One PowerShell call ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ JSON with CPU / RAM / GPU.
+        // One PowerShell call — JSON with CPU / RAM / GPU.
         let script = r#"
 $c = Get-CimInstance Win32_Processor | Select-Object -First 1
 $m = Get-CimInstance Win32_ComputerSystem

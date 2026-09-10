@@ -7,7 +7,8 @@
       "icon": "",
       "motd": "The biggest minigame network on the planet",
       "category": "Minigames",
-      "sponsored": true
+      "sponsored": true,
+      "minVersion": "26.2"
     },
     {
       "name": "Donut SMP",
@@ -16,7 +17,8 @@
       "icon": "",
       "motd": "Survival SMP",
       "category": "SMP",
-      "sponsored": true
+      "sponsored": true,
+      "minVersion": "26.2"
     },
     {
       "name": "Wynncraft",
@@ -25,7 +27,8 @@
       "icon": "",
       "motd": "A full free-to-play MMORPG inside Minecraft",
       "category": "MMORPG",
-      "sponsored": false
+      "sponsored": false,
+      "minVersion": "26.2"
     },
     {
       "name": "2b2t",
@@ -34,7 +37,8 @@
       "icon": "",
       "motd": "The oldest anarchy server in Minecraft",
       "category": "Anarchy",
-      "sponsored": false
+      "sponsored": false,
+      "minVersion": "26.2"
     },
     {
       "name": "Minewind",
@@ -43,7 +47,8 @@
       "icon": "",
       "motd": "Vanilla anarchy with a twist of chaos",
       "category": "Anarchy",
-      "sponsored": false
+      "sponsored": false,
+      "minVersion": "26.2"
     },
     {
       "name": "Purple Prison",
@@ -52,7 +57,8 @@
       "icon": "",
       "motd": "Prison, parkour and PvP events daily",
       "category": "Prison",
-      "sponsored": false
+      "sponsored": false,
+      "minVersion": "26.2"
     }
   ]
 }

@@ -1,4 +1,4 @@
-//! Server list: remote JSON (from the OL-updater repo) + Minecraft
+//! Server list: remote JSON (from the SoulLauncher repo) + Minecraft
 //! Server List Ping (SLP 1.7+) for live player counts and latency.
 
 use serde::{Deserialize, Serialize};
@@ -36,6 +36,53 @@ pub struct PingResult {
     pub icon: String,
     pub version: String,
     pub ping_ms: u64,
+}
+
+// ---------------------------------------------------------------------------
+// address parsing
+
+/// Split `host`, `host:port`, `[v6]` or `[v6]:port` into (host, port).
+/// IPv6 literals must be bracketed; a bare multi-colon string is treated as
+/// an unbracketed IPv6 address (last segment is NOT a port in that case).
+pub fn split_host_port(addr: &str, default_port: u16) -> (String, u16) {
+    let addr = addr.trim();
+    if let Some(rest) = addr.strip_prefix('[') {
+        // [v6] or [v6]:port
+        if let Some(end) = rest.find(']') {
+            let host = rest[..end].to_string();
+            let after = &rest[end + 1..];
+            let port = after
+                .strip_prefix(':')
+                .and_then(|p| p.parse::<u16>().ok())
+                .unwrap_or(default_port);
+            return (host, port);
+        }
+    }
+    match addr.rsplit_once(':') {
+        // exactly one colon and a numeric right side → host:port
+        Some((host, port)) if !host.contains(':') && !host.is_empty() => {
+            match port.parse::<u16>() {
+                Ok(p) => (host.to_string(), p),
+                Err(_) => (addr.to_string(), default_port),
+            }
+        }
+        _ => (addr.to_string(), default_port),
+    }
+}
+
+/// Is this a plausible Minecraft server host? (domain, IPv4, IPv6 or localhost)
+fn valid_host(host: &str) -> bool {
+    if host.is_empty() || host.len() > 253 || host.contains('/') || host.contains('?') || host.contains('&') {
+        return false;
+    }
+    if host.contains(':') {
+        // unbracketed IPv6: only hex digits, colons and dots allowed
+        return host
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() || c == ':' || c == '.');
+    }
+    host.chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
 }
 
 // ---------------------------------------------------------------------------
@@ -106,20 +153,22 @@ fn motd_to_text(v: &serde_json::Value) -> String {
     }
 }
 
-pub fn ping_server(host: &str, port: u16, timeout_ms: u64) -> Result<PingResult, String> {
+/// SLP ping against a pre-resolved address (the async command layer resolves
+/// the host with a bounded timeout, so DNS can never wedge a ping forever).
+/// The handshake still carries the original hostname — proxies such as
+/// BungeeCord route on it.
+pub fn ping_addr(addr: SocketAddr, host: &str, port: u16, timeout_ms: u64) -> Result<PingResult, String> {
     let timeout = Duration::from_millis(timeout_ms.max(500));
-    let start = Instant::now();
-
-    let addr = format!("{host}:{port}")
-        .to_socket_addrs()
-        .map_err(|e| format!("DNS lookup failed: {e}"))?
-        .next()
-        .ok_or("No address for host")?;
 
     let mut stream = std::net::TcpStream::connect_timeout(&addr, timeout)
         .map_err(|e| format!("Server offline ({e})"))?;
     stream.set_read_timeout(Some(timeout)).map_err(|e| e.to_string())?;
     stream.set_write_timeout(Some(timeout)).map_err(|e| e.to_string())?;
+    stream.set_nodelay(true).ok();
+
+    // latency clock starts after DNS + TCP: it must reflect the game hop,
+    // not how fast the OS resolved the name.
+    let connect_start = Instant::now();
 
     // handshake
     let mut data: Vec<u8> = Vec::new();
@@ -147,24 +196,27 @@ pub fn ping_server(host: &str, port: u16, timeout_ms: u64) -> Result<PingResult,
     }
     let json_len = read_varint(&mut stream).map_err(|e| e.to_string())? as usize;
     let json_bytes = read_n(&mut stream, json_len.min(1 << 20)).map_err(|e| e.to_string())?;
+    let status_ms = connect_start.elapsed().as_millis() as u64;
     let v: serde_json::Value =
         serde_json::from_slice(&json_bytes).map_err(|e| format!("Bad ping data: {e}"))?;
 
-    // latency ping (best effort)
+    // latency: prefer the SLP ping/pong round trip, but some proxies and
+    // vanilla-ish servers close the socket right after the status response.
+    // Their answer is the status RTT we already measured.
     let ping_ms = {
         let mut ping_pkt: Vec<u8> = Vec::new();
         write_varint(&mut ping_pkt, 9);
         write_varint(&mut ping_pkt, 1);
         ping_pkt.extend_from_slice(&42i64.to_be_bytes());
         let t = Instant::now();
-        let measured = if stream.write_all(&ping_pkt).is_ok() {
+        if stream.write_all(&ping_pkt).is_ok() && stream.flush().is_ok() {
             let mut pong = [0u8; 10];
             stream.read_exact(&mut pong).ok().map(|_| t.elapsed().as_millis() as u64)
         } else {
             None
-        };
-        measured.unwrap_or_else(|| start.elapsed().as_millis() as u64)
-    };
+        }
+    }
+    .unwrap_or(status_ms);
 
     let players_online = v
         .get("players")
@@ -200,7 +252,18 @@ pub fn ping_server(host: &str, port: u16, timeout_ms: u64) -> Result<PingResult,
     })
 }
 
-use std::net::ToSocketAddrs;
+use std::net::{SocketAddr, ToSocketAddrs};
+
+/// Blocking convenience wrapper (selftest + unit tests): resolve, then ping.
+#[allow(dead_code)]
+pub fn ping_server(host: &str, port: u16, timeout_ms: u64) -> Result<PingResult, String> {
+    let addr = format!("{host}:{port}")
+        .to_socket_addrs()
+        .map_err(|e| format!("DNS lookup failed: {e}"))?
+        .next()
+        .ok_or("No address for host")?;
+    ping_addr(addr, host, port, timeout_ms)
+}
 
 // ---------------------------------------------------------------------------
 // Remote list parsing (strict: drop anything suspicious)
@@ -218,14 +281,23 @@ pub fn parse_server_list(raw: &str) -> Vec<RemoteServer> {
     for item in arr.iter().take(64) {
         let get = |k: &str| item.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
         let name = clean_text(&get("name"), 48);
-        let ip = get("ip");
-        if name.is_empty() || !valid_ip(&ip) {
+        let raw_ip = get("ip");
+        if name.is_empty() || raw_ip.is_empty() {
             continue;
         }
+        let (host, embedded_port) = split_host_port(&raw_ip, 25565);
+        if !valid_host(&host) {
+            continue;
+        }
+        let port = item
+            .get("port")
+            .and_then(|x| x.as_u64())
+            .map(|p| p as u16)
+            .or(Some(embedded_port));
         out.push(RemoteServer {
             name,
-            ip,
-            port: item.get("port").and_then(|x| x.as_u64()).map(|p| p as u16),
+            ip: host,
+            port,
             icon: clean_url(&get("icon")),
             motd: clean_text(&get("motd"), 120),
             category: {
@@ -237,27 +309,6 @@ pub fn parse_server_list(raw: &str) -> Vec<RemoteServer> {
         });
     }
     out
-}
-
-fn valid_ip(ip: &str) -> bool {
-    // host[:port] — letters, digits, dots, dashes only; port must be numeric
-    if ip.len() > 260 || ip.contains('/') || ip.contains('?') || ip.contains('&') {
-        return false;
-    }
-    let mut parts = ip.split(':');
-    let host = parts.next().unwrap_or("");
-    let port_ok = match parts.next() {
-        None => true,
-        Some(p) => !p.is_empty() && p.len() <= 5 && p.chars().all(|c| c.is_ascii_digit()),
-    };
-    parts.next().is_none()
-        && port_ok
-        && !host.is_empty()
-        && host.len() <= 253
-        && host.contains('.')
-        && host
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
 }
 
 fn clean_text(s: &str, max: usize) -> String {
@@ -307,6 +358,21 @@ mod tests {
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].name, "Cool SMP");
         assert!(list[0].sponsored);
-        assert_eq!(list[0].ip.split(':').next().unwrap(), "play.cool.gg");
+        assert_eq!(list[0].ip, "play.cool.gg");
+        // embedded port is split out, never pinged with the default port
+        assert_eq!(list[1].ip, "mc.ok.net");
+        assert_eq!(list[1].port, Some(25566));
+    }
+
+    #[test]
+    fn host_port_splitting() {
+        assert_eq!(split_host_port("play.hypixel.net", 25565), ("play.hypixel.net".into(), 25565));
+        assert_eq!(split_host_port("play.hypixel.net:25577", 25565), ("play.hypixel.net".into(), 25577));
+        assert_eq!(split_host_port("localhost", 25565), ("localhost".into(), 25565));
+        assert_eq!(split_host_port("[::1]:25565", 25565), ("::1".into(), 25565));
+        // unbracketed IPv6 keeps its colons (a bare port would be nonsense)
+        let (h, p) = split_host_port("2001:db8::1", 25565);
+        assert_eq!(h, "2001:db8::1");
+        assert_eq!(p, 25565);
     }
 }

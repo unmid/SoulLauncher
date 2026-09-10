@@ -24,7 +24,7 @@ function musicManifestPlugin() {
     } catch {}
   }
   return {
-    name: 'orbit-music-manifest',
+    name: 'soul-music-manifest',
     buildStart() { write() },
     configureServer(server) {
       write()

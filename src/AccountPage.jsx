@@ -399,7 +399,7 @@ export default function AccountPage({ accounts, settings, activeAccount, refresh
       <div className="security-note">
         <IconInfo size={14} />
         <span>
-          The Microsoft window may say “OpenLauncher” — Orbit is a fork of OpenLauncher and shares its official
+          The Microsoft window may say “OpenLauncher” — Soul is a fork of OpenLauncher and shares its official
           sign-in service. Your token is stored in Windows Credential Manager and never leaves this PC.
         </span>
       </div>

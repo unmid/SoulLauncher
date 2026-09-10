@@ -7,7 +7,7 @@ import {
 import { progressDetail, stageText } from './App.jsx'
 
 const DISCORD_URL = 'https://discord.gg/Z7QfWSPJmJ'
-const RELEASENOTES_URL = 'https://github.com/unmid/OrbitLauncher/releases'
+const RELEASENOTES_URL = 'https://github.com/unmid/SoulLauncher/releases'
 const WALLPAPERS = ['./wallpapers/w1.png', './wallpapers/w2.png', './wallpapers/w3.png', './wallpapers/w4.png']
 const WALLPAPER_INTERVAL = 32000
 const BUSY_STAGES = ['loader', 'version', 'files', 'java', 'launching']
@@ -256,13 +256,13 @@ export default function HomePage({ settings, spaces, selectedSpace, activeAccoun
                 </button>
                 <button className="quick-tile" onClick={() => navigate('settings')}>
                   <span className="quick-tile-ic"><AppIcon name="tune" size={16} /></span>
-                  Customize Orbit
+                  Customize Soul
                 </button>
                 <button className="quick-tile" onClick={() => api.openUrl(DISCORD_URL)} title="Community, support and sneak peeks">
                   <span className="quick-tile-ic"><IconDiscord size={15} /></span>
                   Discord
                 </button>
-                <button className="quick-tile" onClick={() => api.openUrl(RELEASENOTES_URL)} title="What's new in Orbit Launcher">
+                <button className="quick-tile" onClick={() => api.openUrl(RELEASENOTES_URL)} title="What's new in Soul Launcher">
                   <span className="quick-tile-ic"><IconNews size={15} /></span>
                   Changelog
                 </button>
@@ -278,7 +278,7 @@ export default function HomePage({ settings, spaces, selectedSpace, activeAccoun
             {update && (
               <div className="update-banner" role="status" style={{ marginTop: 18 }}>
                 <AppIcon name="update-available" size={18} />
-                <span>Orbit v{update.latest} is out — you're on v{update.current}</span>
+                <span>Soul v{update.latest} is out — you're on v{update.current}</span>
                 <button className="btn btn-primary btn-small" onClick={() => navigate('settings:updates')}>
                   Review update
                 </button>

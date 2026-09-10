@@ -625,7 +625,7 @@ mod tests {
         v.insert("auth_xuid".into(), "".into());
         v.insert("user_type".into(), "msa".into());
         v.insert("version_type".into(), "release".into());
-        v.insert("launcher_name".into(), "orbit-launcher".into());
+        v.insert("launcher_name".into(), "soul-launcher".into());
         v.insert("launcher_version".into(), "beta".into());
         v
     }

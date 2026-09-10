@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api, fmtDownloads, openFileDialog } from './api.js'
 import Dropdown from './Dropdown.jsx'
-import { IconSearch, IconPlus, IconCheck, IconX, IconDownload, IconCube, IconBrush, IconSparkle, IconRefresh, IconRocket, IconLayers, IconWarn } from './icons.jsx'
+import { IconSearch, IconPlus, IconCheck, IconX, IconDownload, IconCube, IconBrush, IconSparkle, IconRefresh, IconRocket, IconLayers, IconWarn, IconBack, IconExternal } from './icons.jsx'
 
 const KINDS = [
   { id: 'mod', label: 'Mods', icon: IconCube },
@@ -58,6 +59,306 @@ function renderDescription(value) {
 function installedRecord(items, source, projectId) {
   const stored = `${source}:${projectId}`
   return items.find((item) => (item.projectId || item.project_id) === stored || (item.projectId || item.project_id) === projectId) || null
+}
+
+const MODPAGE_VIEWER = 'https://unmid.github.io/SoulLauncher/modpage.html'
+const MODRINTH_ROUTES = {
+  mod: 'mod',
+  resourcepack: 'resourcepack',
+  shader: 'shader',
+  datapack: 'datapack',
+  modpack: 'modpack',
+}
+
+function modrinthRoute(kind) {
+  return MODRINTH_ROUTES[kind] || 'mod'
+}
+
+function ProjectPagePopup({
+  details,
+  detailsBusy,
+  detailsError,
+  detailsIcon,
+  detailsMarkup,
+  detailsVersions,
+  detailsLoaders,
+  detailsCategories,
+  source,
+  kind,
+  isPackKind,
+  targetVersion,
+  blocked,
+  busyId,
+  activeMods,
+  detailsUnsupported,
+  onClose,
+  onToggle,
+}) {
+  const [mode, setMode] = useState(source === 'curseforge' ? 'details' : 'page')
+  const [frameLoaded, setFrameLoaded] = useState(false)
+  const [frameTimedOut, setFrameTimedOut] = useState(false)
+  const [frameKey, setFrameKey] = useState(0)
+  const frameLoadedRef = useRef(false)
+  const projectId = details?.projectId || ''
+  const route = modrinthRoute(kind)
+  // Keep the first project reference for the embedded viewer. The API response
+  // arrives a moment later with a prettier slug; swapping the frame source
+  // then would needlessly reload the page the user is already reading.
+  const [initialProjectRef] = useState(details?.slug || details?.projectId || projectId)
+  const viewerUrl = `${MODPAGE_VIEWER}?source=modrinth&project=${encodeURIComponent(initialProjectRef)}&kind=${route}`
+  const canonicalUrl = source === 'modrinth'
+    ? `https://modrinth.com/${route}/${encodeURIComponent(details?.slug || details?.projectId || projectId)}`
+    : (details?.pageUrl || '')
+  const record = installedRecord(activeMods, source, projectId)
+  const installed = !!record && !isPackKind
+  const disabled = busyId === projectId || detailsUnsupported
+  const showFrame = source === 'modrinth' && mode === 'page' && !frameTimedOut
+
+  useEffect(() => {
+    if (!showFrame) return undefined
+    frameLoadedRef.current = false
+    setFrameLoaded(false)
+    // Cross-origin iframes do not reliably report blocking or DNS failures.
+    // If nothing renders in a reasonable time, use the native details view.
+    const timer = setTimeout(() => {
+      if (!frameLoadedRef.current) setFrameTimedOut(true)
+    }, 15000)
+    return () => clearTimeout(timer)
+  }, [showFrame, viewerUrl, frameKey])
+
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="page-popup" role="dialog" aria-modal="true" aria-label={details.title} onClick={(event) => event.stopPropagation()}>
+        <div className="page-popup-toolbar">
+          <button className="page-back" onClick={onClose} title="Back to results (Esc)">
+            <IconBack size={15} /> Back
+          </button>
+          <div className="page-popup-identity">
+            {detailsIcon
+              ? <img src={detailsIcon} alt="" />
+              : <div className="details-icon-fallback" style={{ width: 38, height: 38, borderRadius: 10 }}><IconCube size={20} /></div>}
+            <div style={{ minWidth: 0 }}>
+              <div className="page-popup-title">{details.title}</div>
+              <div className="page-popup-sub">
+                {details.author ? `${details.author} · ` : ''}{source === 'modrinth' ? 'Modrinth' : 'CurseForge'}
+              </div>
+            </div>
+          </div>
+          <div className="page-popup-actions">
+            {source === 'modrinth' && (
+              <div className="segment" role="tablist" aria-label="Page view">
+                <button className={`segment-btn ${mode === 'page' ? 'active' : ''}`} onClick={() => setMode('page')}>Page</button>
+                <button className={`segment-btn ${mode === 'details' ? 'active' : ''}`} onClick={() => setMode('details')}>Details</button>
+              </div>
+            )}
+            {!blocked && (
+              <button
+                className={`mod-add-btn ${isPackKind ? 'mod-add-btn-pack' : ''} ${installed ? 'mod-add-btn-picked' : ''}`}
+                disabled={disabled}
+                onClick={onToggle}
+                title={isPackKind ? 'Create a new Space from this pack' : installed ? 'Remove from Space' : 'Add to Space'}
+              >
+                {busyId === projectId
+                  ? <span className="mini-spinner" />
+                  : isPackKind
+                    ? <><IconRocket size={14} /> {targetVersion ? `Create Space · ${targetVersion}` : 'New Space'}</>
+                    : installed
+                      ? <><IconCheck size={15} /> Remove</>
+                      : <><IconPlus size={15} /> Add</>}
+              </button>
+            )}
+            {canonicalUrl && (
+              <button className="icon-btn" onClick={() => api.openUrl(canonicalUrl)} title={`Open the full ${source === 'modrinth' ? 'Modrinth' : 'CurseForge'} page`}>
+                <IconExternal size={16} />
+              </button>
+            )}
+            <button className="icon-btn" onClick={onClose} title="Close (Esc)"><IconX size={17} /></button>
+          </div>
+        </div>
+
+        {showFrame ? (
+          <div className="page-frame-wrap">
+            {!frameLoaded && (
+              <div className="page-loading" role="status">
+                <span className="mini-spinner" /> Loading the live {source === 'modrinth' ? 'Modrinth' : 'project'} page…
+              </div>
+            )}
+            <iframe
+              key={`${viewerUrl}#${frameKey}`}
+              className="page-frame"
+              src={viewerUrl}
+              title={`${details.title} on ${source === 'modrinth' ? 'Modrinth' : 'CurseForge'}`}
+              referrerPolicy="no-referrer"
+              allow="fullscreen"
+              onLoad={() => { frameLoadedRef.current = true; setFrameLoaded(true); }}
+              onError={() => setFrameTimedOut(true)}
+            />
+          </div>
+        ) : (
+          <ProjectDetailsFallback
+            details={details}
+            detailsBusy={detailsBusy}
+            detailsError={detailsError}
+            detailsIcon={detailsIcon}
+            detailsMarkup={detailsMarkup}
+            detailsVersions={detailsVersions}
+            detailsLoaders={detailsLoaders}
+            detailsCategories={detailsCategories}
+            source={source}
+            kind={kind}
+            isPackKind={isPackKind}
+            targetVersion={targetVersion}
+            detailsUnsupported={detailsUnsupported}
+            frameTimedOut={frameTimedOut && source === 'modrinth'}
+            onShowPage={source === 'modrinth' ? () => { setFrameTimedOut(false); setFrameKey((n) => n + 1); setMode('page') } : null}
+            blocked={blocked}
+            disabled={disabled}
+            installed={installed}
+            busyId={busyId}
+            projectId={projectId}
+            onToggle={onToggle}
+            onRetry={onRetry}
+            onClose={onClose}
+          />
+        )}
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+function ProjectDetailsFallback({
+  details,
+  detailsBusy,
+  detailsError,
+  detailsIcon,
+  detailsMarkup,
+  detailsVersions,
+  detailsLoaders,
+  detailsCategories,
+  source,
+  isPackKind,
+  targetVersion,
+  detailsUnsupported,
+  frameTimedOut,
+  onShowPage,
+  blocked,
+  disabled,
+  installed,
+  busyId,
+  projectId,
+  onToggle,
+  onRetry,
+  onClose,
+}) {
+  return (
+    <div className="page-fallback">
+      <div className="details-head" style={{ padding: 0, border: 0 }}>
+        {detailsIcon
+          ? <img src={detailsIcon} alt="" className="details-icon" />
+          : <div className="details-icon details-icon-fallback"><IconCube size={26} /></div>}
+        <div className="details-heading">
+          <h2>{details.title}</h2>
+          <div className="details-byline">
+            {details.author && <span className="details-author">{details.author}</span>}
+            <span className="details-source">{source === 'modrinth' ? 'Modrinth' : 'CurseForge'}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="details-meta" style={{ padding: '14px 0 2px' }}>
+        <span className="details-pill"><IconDownload size={12} /> {fmtDownloads(details.downloads)} downloads</span>
+        {!isPackKind && (
+          <span className={`details-support ${detailsUnsupported ? 'unsupported' : ''}`}>
+            {detailsUnsupported
+              ? `No support for Minecraft ${targetVersion}`
+              : `Supports Minecraft ${targetVersion || 'the selected version'}`}
+          </span>
+        )}
+      </div>
+
+      {frameTimedOut && (
+        <div className="page-fallback-note">
+          <strong>The live page would not load here.</strong> You are seeing the built-in project details instead.
+          {onShowPage && <> <button className="btn btn-ghost btn-small" onClick={onShowPage}>Try the page again</button></>}
+        </div>
+      )}
+      {source === 'curseforge' && (
+        <div className="page-fallback-note">
+          <strong>CurseForge does not allow its pages to be embedded.</strong> This built-in view has the description, versions,
+          loaders, and install actions; use the open icon above for the full CurseForge page.
+        </div>
+      )}
+
+      {details.description && detailsMarkup !== details.description && (
+        <p className="page-fallback-lead">{details.description}</p>
+      )}
+      {detailsBusy ? (
+        <div className="details-skel">
+          <div className="skeleton skeleton-line" style={{ width: '92%' }} />
+          <div className="skeleton skeleton-line" style={{ width: '98%' }} />
+          <div className="skeleton skeleton-line" style={{ width: '64%' }} />
+          <div className="skeleton skeleton-line" style={{ width: '85%' }} />
+          <div className="skeleton skeleton-line" style={{ width: '41%' }} />
+        </div>
+      ) : detailsError ? (
+        <div className="details-error">
+          <IconWarn size={26} />
+          <div>Couldn't load the full description.<br /><span style={{ color: 'var(--faint)', fontSize: 12 }}>{detailsError.slice(0, 120)}</span></div>
+          <button className="btn btn-secondary btn-small" onClick={onRetry}><IconRefresh size={13} /> Try again</button>
+        </div>
+      ) : (
+        <div className="details-body details-rendered" style={{ padding: '10px 0 0', overflow: 'visible' }} dangerouslySetInnerHTML={{ __html: detailsMarkup || '<p>No description provided.</p>' }} />
+      )}
+
+      {detailsLoaders.length > 0 && (
+        <div className="details-section">
+          <div className="details-section-title">Software</div>
+          <div className="details-chips">
+            {detailsLoaders.map((l) => <span key={l} className="details-chip loader">{l}</span>)}
+          </div>
+        </div>
+      )}
+
+      {detailsVersions.length > 0 && (
+        <div className="details-section">
+          <div className="details-section-title">Minecraft versions</div>
+          <div className="details-chips">
+            {detailsVersions.slice(0, 18).map((v) => <span key={v} className="details-chip">{v}</span>)}
+            {detailsVersions.length > 18 && <span className="details-chip more">+{detailsVersions.length - 18} more</span>}
+          </div>
+        </div>
+      )}
+
+      {detailsCategories.length > 0 && (
+        <div className="details-section">
+          <div className="details-section-title">Categories</div>
+          <div className="details-chips">
+            {detailsCategories.map((c) => <span key={c} className="details-chip">{c}</span>)}
+          </div>
+        </div>
+      )}
+
+      <div className="details-foot" style={{ padding: '18px 0 4px', background: 'transparent', borderTop: 0 }}>
+        <button className="btn btn-ghost" onClick={onClose}>Back</button>
+        {!blocked && (
+          <button
+            className={`btn btn-primary ${installed && !isPackKind ? 'btn-picked' : ''}`}
+            disabled={disabled}
+            onClick={onToggle}
+          >
+            {busyId === projectId
+              ? <span className="mini-spinner" />
+              : isPackKind
+                ? <><IconRocket size={15} /> {targetVersion ? `Create Space · ${targetVersion}` : 'Create Space from pack'}</>
+                : installed
+                  ? <><IconCheck size={16} /> Remove from Space</>
+                  : <><IconPlus size={16} /> Add to Space</>}
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onPick, onUnpick, directSpaceId = null, onDirectChange, onSpaceCreated, notify }) {
@@ -402,7 +703,7 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
         </>
       )}
 
-      {datapackPick && (
+      {datapackPick && createPortal(
         <div className="modal-backdrop" onClick={() => setDatapackPick(null)}>
           <div className="confirm-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <div className="confirm-title">Where should “{datapackPick.hit.title}” go?</div>
@@ -417,108 +718,34 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
               <button className="btn btn-ghost" onClick={() => setDatapackPick(null)}>Cancel</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {details && <div className="modal-backdrop" onClick={() => setDetails(null)}>
-        <div ref={detailsRef} className="content-details" role="dialog" aria-modal="true" aria-label={details.title} onClick={(event) => event.stopPropagation()}>
-          <div className="details-head">
-            {detailsIcon
-              ? <img src={detailsIcon} alt="" className="details-icon" />
-              : <div className="details-icon details-icon-fallback"><IconCube size={26} /></div>}
-            <div className="details-heading">
-              <h2>{details.title}</h2>
-              <div className="details-byline">
-                {details.author && <span className="details-author">{details.author}</span>}
-                <span className="details-source">{source === 'modrinth' ? 'Modrinth' : 'CurseForge'}</span>
-              </div>
-            </div>
-            <button className="icon-btn" onClick={() => setDetails(null)} title="Close (Esc)"><IconX size={18} /></button>
-          </div>
-
-          <div className="details-scroll">
-            <div className="details-meta" style={{ padding: '12px 0 2px' }}>
-              <span className="details-pill"><IconDownload size={12} /> {fmtDownloads(details.downloads)} downloads</span>
-              {!isPackKind && (
-                <span className={`details-support ${detailsUnsupported ? 'unsupported' : ''}`}>
-                  {detailsUnsupported
-                    ? `No support for Minecraft ${targetVersion}`
-                    : `Supports Minecraft ${targetVersion || 'the selected version'}`}
-                </span>
-              )}
-            </div>
-
-            {details.description && detailsMarkup !== details.description && (
-              <p style={{ color: 'var(--muted)', fontWeight: 700, fontSize: 13, margin: '10px 0 0' }}>{details.description}</p>
-            )}
-
-            {detailsBusy ? (
-              <div className="details-skel">
-                <div className="skeleton skeleton-line" style={{ width: '92%' }} />
-                <div className="skeleton skeleton-line" style={{ width: '98%' }} />
-                <div className="skeleton skeleton-line" style={{ width: '64%' }} />
-                <div className="skeleton skeleton-line" style={{ width: '85%' }} />
-                <div className="skeleton skeleton-line" style={{ width: '41%' }} />
-              </div>
-            ) : detailsError ? (
-              <div className="details-error">
-                <IconWarn size={26} />
-                <div>Couldn't load the full description.<br /><span style={{ color: 'var(--faint)', fontSize: 12 }}>{detailsError.slice(0, 120)}</span></div>
-                <button className="btn btn-secondary btn-small" onClick={() => openDetails(details)}><IconRefresh size={13} /> Try again</button>
-              </div>
-            ) : (
-              <div className="details-body details-rendered" style={{ padding: '10px 0 0', overflow: 'visible' }} dangerouslySetInnerHTML={{ __html: detailsMarkup || '<p>No description provided.</p>' }} />
-            )}
-
-            {!detailsBusy && detailsLoaders.length > 0 && (
-              <div className="details-section">
-                <div className="details-section-title">Software</div>
-                <div className="details-chips">
-                  {detailsLoaders.map((l) => <span key={l} className="details-chip loader">{l}</span>)}
-                </div>
-              </div>
-            )}
-
-            {!detailsBusy && detailsVersions.length > 0 && (
-              <div className="details-section">
-                <div className="details-section-title">Minecraft versions</div>
-                <div className="details-chips">
-                  {detailsVersions.slice(0, 18).map((v) => <span key={v} className="details-chip">{v}</span>)}
-                  {detailsVersions.length > 18 && <span className="details-chip more">+{detailsVersions.length - 18} more</span>}
-                </div>
-              </div>
-            )}
-
-            {!detailsBusy && detailsCategories.length > 0 && (
-              <div className="details-section">
-                <div className="details-section-title">Categories</div>
-                <div className="details-chips">
-                  {detailsCategories.map((c) => <span key={c} className="details-chip">{c}</span>)}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="details-foot">
-            <button className="btn btn-ghost" onClick={() => setDetails(null)}>Back</button>
-            {!blocked && (
-              <button
-                className={`btn btn-primary ${installedRecord(activeMods, source, details.projectId) && !isPackKind ? 'btn-picked' : ''}`}
-                disabled={busyId === details.projectId || detailsUnsupported}
-                onClick={() => toggle({ ...details, gameVersions: detailsVersions, iconUrl: detailsIcon })}
-              >
-                {busyId === details.projectId
-                  ? <span className="mini-spinner" />
-                  : isPackKind
-                    ? <><IconRocket size={15} /> {targetVersion ? `Create Space · ${targetVersion}` : 'Create Space from pack'}</>
-                    : installedRecord(activeMods, source, details.projectId)
-                      ? <><IconCheck size={16} /> Remove from Space</>
-                      : <><IconPlus size={16} /> Add to Space</>}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>}
+      {details && (
+        <ProjectPagePopup
+          key={`${source}:${details.projectId}`}
+          details={details}
+          detailsBusy={detailsBusy}
+          detailsError={detailsError}
+          detailsIcon={detailsIcon}
+          detailsMarkup={detailsMarkup}
+          detailsVersions={detailsVersions}
+          detailsLoaders={detailsLoaders}
+          detailsCategories={detailsCategories}
+          source={source}
+          kind={kind}
+          isPackKind={isPackKind}
+          targetVersion={targetVersion}
+          blocked={blocked}
+          busyId={busyId}
+          activeMods={activeMods}
+          detailsUnsupported={detailsUnsupported}
+          onClose={() => setDetails(null)}
+          onToggle={() => toggle({ ...details, gameVersions: detailsVersions, iconUrl: detailsIcon })}
+          onRetry={() => openDetails(details)}
+        />
+      )}
     </div>
   )
 }

@@ -94,7 +94,15 @@ export const IconGear = (p) => (
   </g></S>
 )
 export const IconUpdate = (p) => (
-  <S {...p}><g stroke="var(--line)" strokeWidth="2" strokeLinecap="round" fill="none"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" /><path d="M19.8 3.5v3.7h-3.7" /></g></S>
+  <S {...p}><Grad id="g-update" c="var(--green)" /><g stroke="var(--line)">
+    <circle cx="12" cy="12" r="8.6" fill="url(#g-update)" strokeWidth="1.7" />
+    <path d="M6.4 6.7A7.7 7.7 0 0 1 12 4.2" fill="none" stroke="#fff" strokeWidth="1.2" opacity=".38" strokeLinecap="round" />
+    <g fill="none" strokeWidth="2.1" strokeLinecap="round">
+      <path d="M18.9 12a6.9 6.9 0 1 1-2-4.9" stroke="#fff" />
+      <path d="M19.2 4.2v3.5h-3.5" stroke="#fff" />
+    </g>
+    <circle cx="12" cy="12" r="1" fill="#fff" stroke="none" opacity=".65" />
+  </g></S>
 )
 export const IconKey = (p) => (
   <S {...p}><g stroke="var(--line)" strokeWidth="1.7" strokeLinecap="round">
@@ -104,25 +112,40 @@ export const IconKey = (p) => (
   </g></S>
 )
 export const IconBack = (p) => (
-  <S {...p}><path d="M14.5 6l-6 6 6 6" fill="none" stroke="var(--line)" strokeWidth="2.4" strokeLinecap="round" /></S>
+  <S {...p}><Grad id="g-back" c="var(--card)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
+    <rect x="3.5" y="4" width="17" height="16" rx="5" fill="url(#g-back)" />
+    <path d="M5.5 6h13" fill="none" stroke="#fff" strokeWidth="1.1" opacity=".3" strokeLinecap="round" />
+    <path d="M11.5 8.2h6.2" fill="none" strokeWidth="2.3" strokeLinecap="round" />
+    <path d="M13.4 8.2l-4 3.8 4 3.8" fill="none" strokeWidth="2.3" strokeLinecap="round" />
+    <path d="M13 8.9l-1.4 1.5" fill="none" stroke="#fff" strokeWidth=".9" opacity=".5" strokeLinecap="round" />
+  </g></S>
 )
 
 // --- actions / ui ------------------------------------------------------------
 export const IconPlay = (p) => (
-  <S {...p}><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
-    <path d="M8 5l12 7-12 7z" fill="currentColor" />
-    <path d="M8 5l12 7-12 2.6z" fill="#fff" opacity=".22" stroke="none" />
+  <S {...p}><Grad id="g-play" c="var(--accent, var(--orange))" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="16" rx="5" fill="url(#g-play)" />
+    <path d="M4.8 5.8h14.4" fill="none" stroke="#fff" strokeWidth="1.1" opacity=".34" strokeLinecap="round" />
+    <path d="M9.8 8.4v7.2L16.7 12z" fill="#fff" stroke="var(--card)" strokeWidth="1" />
+    <path d="M10.9 9.3v2.4" fill="none" stroke="var(--accent, var(--orange))" strokeWidth="1" opacity=".48" strokeLinecap="round" />
   </g></S>
 )
 export const IconPause = (p) => (
-  <S {...p}><g stroke="var(--line)" strokeWidth="1.6">
-    <rect x="6.6" y="5" width="4.2" height="14" rx="1.2" fill="currentColor" />
-    <rect x="13.2" y="5" width="4.2" height="14" rx="1.2" fill="currentColor" />
-    <path d="M8 6.6v3M14.6 6.6v3" stroke="#fff" opacity=".3" strokeWidth="1.1" strokeLinecap="round" fill="none" />
+  <S {...p}><Grad id="g-pause" c="var(--card)" /><g stroke="var(--line)" strokeWidth="1.6">
+    <rect x="4" y="4" width="16" height="16" rx="5.5" fill="url(#g-pause)" />
+    <rect x="8.1" y="7" width="3" height="10" rx="1.4" fill="var(--accent, var(--orange))" />
+    <rect x="12.9" y="7" width="3" height="10" rx="1.4" fill="var(--accent, var(--orange))" />
+    <path d="M8.9 7.9v2.2M13.7 7.9v2.2" stroke="#fff" opacity=".65" strokeWidth=".9" strokeLinecap="round" fill="none" />
   </g></S>
 )
 export const IconPlus = (p) => (
-  <S {...p}><path d="M12 5v14M5 12h14" stroke="var(--line)" strokeWidth="2.4" strokeLinecap="round" fill="none" /></S>
+  <S {...p}><Grad id="g-plus" c="var(--card)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
+    <rect x="4" y="4" width="16" height="16" rx="5.5" fill="url(#g-plus)" />
+    <path d="M6 6.2h12" fill="none" stroke="#fff" strokeWidth="1.1" opacity=".34" strokeLinecap="round" />
+    <path d="M12 8v8" fill="none" stroke="var(--accent, var(--orange))" strokeWidth="2.7" strokeLinecap="round" />
+    <path d="M8 12h8" fill="none" stroke="var(--accent, var(--orange))" strokeWidth="2.7" strokeLinecap="round" />
+    <circle cx="12" cy="12" r="1.25" fill="#fff" stroke="none" opacity=".85" />
+  </g></S>
 )
 export const IconEdit = (p) => (
   <S {...p}><g stroke="var(--line)" strokeWidth="1.6" strokeLinejoin="round">
@@ -149,17 +172,30 @@ export const IconTrash = (p) => (
   </g></S>
 )
 export const IconSearch = (p) => (
-  <S {...p}><g stroke="var(--line)" strokeWidth="1.9" fill="none">
-    <circle cx="10.5" cy="10.5" r="5.6" fill="var(--card)" />
-    <path d="M7.4 9.2a3.4 3.4 0 0 1 2.4-2.3" strokeWidth="1.3" strokeLinecap="round" opacity=".55" />
-    <path d="M14.9 14.9l5.3 5.3" strokeLinecap="round" />
+  <S {...p}><Grad id="g-search" c="var(--blue)" /><g stroke="var(--line)" strokeWidth="1.8" fill="none">
+    <circle cx="10.5" cy="10.5" r="6.4" fill="var(--card)" />
+    <path d="M7.2 8.8a4.2 4.2 0 0 1 3-2.8" strokeWidth="1.3" strokeLinecap="round" opacity=".65" />
+    <path d="M8.1 12.3a3.5 3.5 0 0 0 3.3 2.6" strokeWidth="1.2" strokeLinecap="round" opacity=".38" />
+    <path d="M15.1 15.1l1.7 1.7" strokeLinecap="round" stroke="var(--accent, var(--orange))" strokeWidth="2.8" opacity=".9" />
+    <path d="M15.3 15.3l5 5" strokeLinecap="round" strokeWidth="2.3" />
+    <circle cx="10.5" cy="10.5" r="1" fill="url(#g-search)" stroke="none" opacity=".55" />
   </g></S>
 )
 export const IconX = (p) => (
-  <S {...p}><path d="M6 6l12 12M18 6L6 18" stroke="var(--line)" strokeWidth="2.4" strokeLinecap="round" fill="none" /></S>
+  <S {...p}><Grad id="g-x" c="var(--card)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
+    <rect x="4" y="4" width="16" height="16" rx="5.5" fill="url(#g-x)" />
+    <path d="M6 6.2h12" fill="none" stroke="#fff" strokeWidth="1.1" opacity=".3" strokeLinecap="round" />
+    <path d="M8.8 8.8l6.4 6.4M15.2 8.8l-6.4 6.4" fill="none" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M8.8 8.8l2.4 2.4M15.2 8.8l-2.4 2.4" fill="none" stroke="#fff" strokeWidth=".95" opacity=".55" strokeLinecap="round" />
+  </g></S>
 )
 export const IconCheck = (p) => (
-  <S {...p}><path d="M5 12.5l4.5 5L19 7" fill="none" stroke="var(--line)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></S>
+  <S {...p}><Grad id="g-check" c="var(--green)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="8.6" fill="url(#g-check)" />
+    <path d="M6.5 6.8A7.8 7.8 0 0 1 12 4.2" fill="none" stroke="#fff" strokeWidth="1.2" opacity=".42" strokeLinecap="round" />
+    <path d="M8 12.6l3 3.1 5.2-6.2" fill="none" stroke="#fff" strokeWidth="2.7" strokeLinecap="round" />
+    <path d="M8 12.6l1.6 1.7" fill="none" stroke="var(--card)" strokeWidth="1" opacity=".55" strokeLinecap="round" />
+  </g></S>
 )
 export const IconFolder = (p) => (
   <S {...p}><Grad id="g-folder" c="var(--yellow)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
@@ -170,31 +206,54 @@ export const IconFolder = (p) => (
   </g></S>
 )
 export const IconDownload = (p) => (
-  <S {...p}><g stroke="var(--line)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none">
-    <path d="M12 4v9.5" /><path d="M7.8 9.8L12 14l4.2-4.2" />
-    <path d="M4.5 15.5V18A1.5 1.5 0 0 0 6 19.5h12a1.5 1.5 0 0 0 1.5-1.5v-2.5" />
+  <S {...p}><Grad id="g-download" c="var(--blue)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
+    <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="5.5" fill="url(#g-download)" />
+    <path d="M5.8 5.8h12.4" fill="none" stroke="#fff" strokeWidth="1.1" opacity=".34" strokeLinecap="round" />
+    <path d="M12 7.3v6.7" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+    <path d="M8.6 11.4L12 14.8l3.4-3.4" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+    <path d="M6.3 16.5v1.2a1.5 1.5 0 0 0 1.5 1.5h8.4a1.5 1.5 0 0 0 1.5-1.5v-1.2" fill="none" strokeWidth="1.8" strokeLinecap="round" />
   </g></S>
 )
 export const IconUpload = (p) => (
-  <S {...p}><g stroke="var(--line)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none">
-    <path d="M12 14V4.5" /><path d="M7.8 8.7L12 4.5l4.2 4.2" />
-    <path d="M4.5 15.5V18A1.5 1.5 0 0 0 6 19.5h12a1.5 1.5 0 0 0 1.5-1.5v-2.5" />
+  <S {...p}><Grad id="g-upload" c="var(--green)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
+    <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="5.5" fill="url(#g-upload)" />
+    <path d="M5.8 5.8h12.4" fill="none" stroke="#fff" strokeWidth="1.1" opacity=".32" strokeLinecap="round" />
+    <path d="M12 14.6V7.9" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+    <path d="M8.6 10.5L12 7.1l3.4 3.4" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+    <path d="M6.3 16.5v1.2a1.5 1.5 0 0 0 1.5 1.5h8.4a1.5 1.5 0 0 0 1.5-1.5v-1.2" fill="none" strokeWidth="1.8" strokeLinecap="round" />
   </g></S>
 )
 export const IconImport = (p) => (
-  <S {...p}><g stroke="var(--line)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none">
-    <path d="M12 3v9.5" /><path d="M7.8 8.8L12 13l4.2-4.2" />
-    <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" />
+  <S {...p}><Grad id="g-import" c="var(--violet)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
+    <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="5.5" fill="url(#g-import)" />
+    <path d="M5.8 5.8h12.4" fill="none" stroke="#fff" strokeWidth="1.1" opacity=".32" strokeLinecap="round" />
+    <rect x="7" y="10.8" width="10" height="7" rx="1.8" fill="var(--card)" />
+    <path d="M12 7.2v5.2" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" />
+    <path d="M9.2 10.2L12 13l2.8-2.8" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" />
   </g></S>
 )
 export const IconShare = (p) => (
-  <S {...p}><g stroke="var(--line)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none">
-    <path d="M12 13.5V3.5" /><path d="M7.8 7.2L12 3l4.2 4.2" />
-    <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" />
+  <S {...p}><Grad id="g-share" c="var(--pink)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
+    <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="5.5" fill="url(#g-share)" />
+    <path d="M5.8 5.8h12.4" fill="none" stroke="#fff" strokeWidth="1.1" opacity=".32" strokeLinecap="round" />
+    <rect x="7" y="6.6" width="10" height="7" rx="1.8" fill="var(--card)" />
+    <path d="M12 16.6v-5.2" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" />
+    <path d="M9.2 13.6L12 10.8l2.8 2.8" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" />
   </g></S>
 )
 export const IconMore = (p) => (
-  <S {...p}><g fill="var(--line)"><circle cx="12" cy="5.5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="18.5" r="2" /></g></S>
+  <S {...p}><Grad id="g-more" c="var(--card)" /><g stroke="var(--line)" strokeWidth="1.6" strokeLinejoin="round">
+    <rect x="4" y="4" width="16" height="16" rx="5.5" fill="url(#g-more)" />
+    <path d="M6 6.1h12" fill="none" stroke="#fff" strokeWidth="1.1" opacity=".3" strokeLinecap="round" />
+    <g stroke="none">
+      <circle cx="12" cy="8" r="2" fill="var(--line)" />
+      <circle cx="12" cy="12" r="2" fill="var(--line)" />
+      <circle cx="12" cy="16" r="2" fill="var(--line)" />
+      <circle cx="11.35" cy="7.35" r=".55" fill="#fff" opacity=".72" />
+      <circle cx="11.35" cy="11.35" r=".55" fill="#fff" opacity=".72" />
+      <circle cx="11.35" cy="15.35" r=".55" fill="#fff" opacity=".72" />
+    </g>
+  </g></S>
 )
 export const IconClock = (p) => (
   <S {...p}><Grad id="g-clock" c="var(--card)" /><g stroke="var(--line)" strokeWidth="1.7">
@@ -323,10 +382,23 @@ export const IconDisk = (p) => (
   </g></S>
 )
 export const IconExternal = (p) => (
-  <S {...p}><g stroke="var(--line)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"><path d="M7 17L17 7" /><path d="M9 7h8v8" /></g></S>
+  <S {...p}><Grad id="g-external" c="var(--card)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
+    <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="5.5" fill="url(#g-external)" />
+    <path d="M5.8 5.8H18" fill="none" stroke="#fff" strokeWidth="1.1" opacity=".3" strokeLinecap="round" />
+    <rect x="7" y="7" width="9.5" height="9.5" rx="2.3" fill="none" strokeWidth="1.7" />
+    <path d="M10.2 13.8L17 7" fill="none" stroke="var(--accent, var(--orange))" strokeWidth="2.3" strokeLinecap="round" />
+    <path d="M12.7 7H17v4.3" fill="none" stroke="var(--accent, var(--orange))" strokeWidth="2.3" strokeLinecap="round" />
+  </g></S>
 )
 export const IconRefresh = (p) => (
-  <S {...p}><g stroke="var(--line)" strokeWidth="2" strokeLinecap="round" fill="none"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" /><path d="M19.8 3.5v3.7h-3.7" /></g></S>
+  <S {...p}><Grad id="g-refresh" c="var(--card)" /><g stroke="var(--line)">
+    <circle cx="12" cy="12" r="8.6" fill="url(#g-refresh)" strokeWidth="1.7" />
+    <path d="M6.4 6.7A7.7 7.7 0 0 1 12 4.2" fill="none" stroke="#fff" strokeWidth="1.2" opacity=".38" strokeLinecap="round" />
+    <g strokeWidth="2.1" strokeLinecap="round" fill="none">
+      <path d="M18.9 12a6.9 6.9 0 1 1-2-4.9" stroke="var(--accent, var(--orange))" />
+      <path d="M19.2 4.2v3.5h-3.5" stroke="var(--accent, var(--orange))" />
+    </g>
+  </g></S>
 )
 export const IconCube = (p) => (
   <S {...p}><Grad id="g-cube" c="var(--violet)" /><Grad id="g-cubetop" c="var(--pink)" /><g stroke="var(--line)" strokeWidth="1.7" strokeLinejoin="round">
@@ -399,6 +471,7 @@ export const IconCurse = (p) => (
 
 // --- loader logos (real logos from public/icons/loader) --------------------------
 const LOADER_LOGO = {
+  soul: './icons/space/soul.png',
   vanilla: './icons/space/crafting-table.png',
   fabric: './icons/loader/fabric.png',
   quilt: './icons/loader/quilt.png',
@@ -414,6 +487,7 @@ export const LoaderMark = Object.fromEntries(
 )
 
 export const LOADER_META = {
+  soul: { label: 'Soul Client', desc: 'Our tuned FPS build on Fabric — 20+ performance mods' },
   vanilla: { label: 'Vanilla', desc: 'Pure Minecraft, zero extras' },
   fabric: { label: 'Fabric', desc: 'Lightweight modding, fast updates' },
   quilt: { label: 'Quilt', desc: 'The open fork of Fabric' },
@@ -424,6 +498,7 @@ export const LOADER_META = {
 
 // --- space icons (real Minecraft block art from public/icons/space) -------------
 export const SPACE_ICONS = [
+  { id: 'soul', label: 'Soul Client' },
   { id: 'crafting-table', label: 'Crafting Table' },
   { id: 'diamond-block', label: 'Diamond Block' },
   { id: 'beacon', label: 'Beacon' },

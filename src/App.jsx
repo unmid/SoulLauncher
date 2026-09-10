@@ -93,14 +93,14 @@ export default function App() {
   const navigate = useCallback((to) => {
     const [pageId, sub] = String(to).split(':')
     setPage(pageId)
-    if (sub) setTimeout(() => window.dispatchEvent(new CustomEvent('orbit-subnav', { detail: sub })), 0)
+    if (sub) setTimeout(() => window.dispatchEvent(new CustomEvent('soul-subnav', { detail: sub })), 0)
   }, [])
 
   // Pages can request navigation (home banners, empty states).
   useEffect(() => {
     const onNav = (e) => { if (e.detail) navigate(e.detail) }
-    window.addEventListener('orbit-nav', onNav)
-    return () => window.removeEventListener('orbit-nav', onNav)
+    window.addEventListener('soul-nav', onNav)
+    return () => window.removeEventListener('soul-nav', onNav)
   }, [navigate])
 
   // ---- initial load ------------------------------------------------------
@@ -146,10 +146,10 @@ export default function App() {
         const { check } = await import('@tauri-apps/plugin-updater')
         const update = await check()
         if (!update || cancelled) return
-        notify(`Update available — downloading Orbit Launcher v${update.version}…`)
+        notify(`Update available — downloading Soul Launcher v${update.version}…`)
         await update.downloadAndInstall()
         if (cancelled) return
-        notify(`Updated to v${update.version} — restarting Orbit Launcher…`)
+        notify(`Updated to v${update.version} — restarting Soul Launcher…`)
         const { relaunch } = await import('@tauri-apps/plugin-process')
         await relaunch()
       } catch { /* offline, dev build or unsigned bundle — stay silent */ }
@@ -157,7 +157,7 @@ export default function App() {
     return () => { cancelled = true }
   }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Desktop shortcuts (`Orbit - <name>.lnk`) start the app with `--space <id>`:
+  // Desktop shortcuts (`Soul - <name>.lnk`) start the app with `--space <id>`:
   // select that Space and launch it immediately, skipping manual selection.
   const autoLaunchRef = useRef(false)
   useEffect(() => {
@@ -428,9 +428,9 @@ export default function App() {
   return (
     <div className="app">
       <aside className="sidenav">
-        <div className="sidenav-brand" onClick={() => navigate('home')} title="Orbit Launcher">
+        <div className="sidenav-brand" onClick={() => navigate('home')} title="Soul Launcher">
           <span className="brand-badge"><img src="./icons/logo.png" width="26" height="26" alt="Orbit" draggable={false} /></span>
-          <span className="brand-word">Orbit</span>
+          <span className="brand-word">Soul</span>
         </div>
         <nav className="sidenav-nav">
           {NAV.map((item, i) => item.section ? (
@@ -498,7 +498,7 @@ export default function App() {
       </aside>
 
       <div className="main-col">
-        <TitleBar title={PAGE_TITLES[page] || 'Orbit'} />
+        <TitleBar title={PAGE_TITLES[page] || 'Soul'} />
 
         <main className="page-wrap">
           <Suspense fallback={<div className="page-loading"><span className="mini-spinner" /></div>}>

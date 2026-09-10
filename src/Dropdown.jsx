@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 /**
  * Paper-styled dropdown that never leaks off-screen:
@@ -86,8 +87,8 @@ export default function Dropdown({ value, onChange, options, placeholder = 'Sele
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
-      {open && (
-        <div className={`dd-list ${up ? 'dd-up' : ''}`} role="listbox" style={menuStyle}>
+      {open && menuStyle && createPortal(
+        <div className={`dd-list dd-portal ${up ? 'dd-up' : ''}`} role="listbox" style={menuStyle}>
           {filter && (
             <input
               ref={searchRef}
@@ -120,7 +121,8 @@ export default function Dropdown({ value, onChange, options, placeholder = 'Sele
             ))}
             {visible.length === 0 && <div className="dd-empty">No match</div>}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

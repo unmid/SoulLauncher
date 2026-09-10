@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 fn space_icon_png(id: &str) -> Option<&'static [u8]> {
     Some(match id {
+        "soul" => include_bytes!("../../public/icons/space/soul.png") as &[u8],
         "crafting-table" => include_bytes!("../../public/icons/space/crafting-table.png") as &[u8],
         "diamond-block" => include_bytes!("../../public/icons/space/diamond-block.png"),
         "beacon" => include_bytes!("../../public/icons/space/beacon.png"),
@@ -60,7 +61,7 @@ fn png_to_ico(png: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 /// Writes (or refreshes) the .ico for a Space and returns its path.
-/// Unknown or legacy icon ids fall back to the Orbit logo mark.
+/// Unknown or legacy icon ids fall back to the Soul logo mark.
 pub fn write_space_ico(root: &Path, space_id: &str, icon_id: &str) -> Result<PathBuf, String> {
     let png = space_icon_png(icon_id).unwrap_or(include_bytes!("../../public/icons/space/crafting-table.png") as &[u8]);
     let dir = root.join("shortcut-icons");

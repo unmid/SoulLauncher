@@ -15,7 +15,7 @@ export default function LibraryPage({ spaces, progress, play, openWizard, refres
     try {
       const path = await openFileDialog({
         title: 'Import a Space',
-        filters: [{ name: 'Orbit Space', extensions: ['json'] }],
+        filters: [{ name: 'Soul Space', extensions: ['json'] }],
         multiple: false,
       })
       if (!path) return
@@ -87,7 +87,7 @@ export default function LibraryPage({ spaces, progress, play, openWizard, refres
       {spaces.length === 0 && (
         <div className="empty-hero">
           <IconGamepad size={40} />
-          <h2>Welcome to Orbit</h2>
+          <h2>Welcome to Soul</h2>
           <p>Make your first Space: choose a Minecraft version, attach a mod loader or OptiFine, and grab content with one click.</p>
           <button className="btn btn-primary btn-big" onClick={() => openWizard('new')}>
             <IconPlus size={17} /> Create my first Space

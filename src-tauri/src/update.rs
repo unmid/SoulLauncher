@@ -1,4 +1,4 @@
-//! One-click updates straight from GitHub Releases on unmid/OrbitLauncher.
+//! One-click updates straight from GitHub Releases on unmid/SoulLauncher.
 
 use crate::remote::RELEASES_REPO;
 use serde::Serialize;
@@ -51,7 +51,7 @@ pub async fn check(http: &reqwest::Client, current: &str) -> Result<UpdateInfo, 
         ))
         .header("Accept", "application/vnd.github+json")
         .header("X-GitHub-Api-Version", "2022-11-28")
-        .header("User-Agent", "OrbitLauncher");
+        .header("User-Agent", "SoulLauncher");
     if !crate::remote::UPDATER_TOKEN.is_empty() {
         req = req.header(
             "Authorization",
@@ -122,7 +122,7 @@ pub async fn download_installer(
     progress: impl Fn(u64, u64) + Send + Sync + 'static,
 ) -> Result<PathBuf, String> {
     let dest = root.join("cache").join("update").join(
-        url.rsplit('/').next().unwrap_or("orbit-update.exe"),
+        url.rsplit('/').next().unwrap_or("soul-update.exe"),
     );
     let task = crate::download::DownloadTask {
         url: url.to_string(),

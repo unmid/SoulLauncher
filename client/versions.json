@@ -1,0 +1,14 @@
+{
+  "versions": [
+    {
+      "id": "26.2",
+      "name": "Soul Client 26.2",
+      "mcVersion": "26.2",
+      "loaderVersion": "0.19.5",
+      "zip": "client/version-26.2/soul-client-26-2.zip",
+      "modCount": 24,
+      "released": "2026-09-10",
+      "notes": "Tuned Fabric FPS build with 24 performance, stability, and options mods."
+    }
+  ]
+}

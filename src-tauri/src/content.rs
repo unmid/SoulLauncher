@@ -40,6 +40,15 @@ pub struct ContentDetails {
     pub loaders: Vec<String>,
     #[serde(default)]
     pub categories: Vec<String>,
+    /// Page identifiers used by the popup: Modrinth needs `slug` plus
+    /// `project_type` to build its canonical page URL, while CurseForge
+    /// carries its own website link.
+    #[serde(default)]
+    pub slug: String,
+    #[serde(default)]
+    pub project_type: String,
+    #[serde(default)]
+    pub page_url: String,
 }
 
 /// mod | resourcepack | shader | datapack
@@ -613,7 +622,24 @@ pub async fn content_details(
         .and_then(|x| x.as_array())
         .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).take(6).collect())
         .unwrap_or_default();
-    Ok(ContentDetails { project_id: project_id.to_string(), title, description, body, author, downloads, icon_url, source: source.to_string(), game_versions, loaders, categories })
+    let slug = data
+        .get("slug")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    let project_type = data
+        .get("project_type")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    // CurseForge already knows its canonical project page.
+    let page_url = data
+        .get("links")
+        .and_then(|x| x.get("websiteUrl"))
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    Ok(ContentDetails { project_id: project_id.to_string(), title, description, body, author, downloads, icon_url, source: source.to_string(), game_versions, loaders, categories, slug, project_type, page_url })
 }
 
 async fn cf_resolve(

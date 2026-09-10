@@ -326,7 +326,7 @@ pub async fn prepare_and_launch(
     vars.insert("assets_root".into(), assets_root.to_string_lossy().to_string());
     vars.insert("assets_index_name".into(), assets_index_name);
     vars.insert("natives_directory".into(), natives_dir.to_string_lossy().to_string());
-    vars.insert("launcher_name".into(), "orbit-launcher".to_string());
+    vars.insert("launcher_name".into(), "soul-launcher".to_string());
     vars.insert("launcher_version".into(), "beta".to_string());
     vars.insert("library_directory".into(), root.join("libraries").to_string_lossy().to_string());
     vars.insert("resolution_width".into(), "854".to_string());
@@ -469,7 +469,7 @@ async fn run_java(
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
     // Capture the game's own log and stream it into Orbit's terminal view.
-    let log_path = cwd.join("orbit-game.log");
+    let log_path = cwd.join("soul-game.log");
     let _ = std::fs::File::create(&log_path);
     cmd.stdin(std::process::Stdio::null());
     cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());

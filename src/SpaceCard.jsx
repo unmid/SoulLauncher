@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LOADER_META, LoaderMark, SpaceIcon, IconPlay, IconEdit, IconCopy, IconFolder, IconClock, IconShare, IconMore, IconWarn, IconExternal, AppIcon } from './icons.jsx'
 import { api, saveFileDialog } from './api.js'
@@ -13,6 +13,8 @@ const BUSY_STAGES = ['loader', 'version', 'files', 'java', 'launching']
 
 export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, onDeleted, notify }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuAnchor, setMenuAnchor] = useState(null)
+  const menuButtonRef = useRef(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const meta = LOADER_META[space.loader] || LOADER_META.vanilla
   const Mark = LoaderMark[space.loader] || LoaderMark.vanilla
@@ -20,6 +22,38 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
   const pct = progressPercent(progress)
   const busy = progress && BUSY_STAGES.includes(progress.stage)
   const running = progress && progress.stage === 'running'
+
+  useEffect(() => {
+    if (!menuOpen) {
+      setMenuAnchor(null)
+      return undefined
+    }
+    const updateAnchor = () => {
+      const rect = menuButtonRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const width = 198
+      const gutter = 10
+      const heightEstimate = 250
+      const roomBelow = window.innerHeight - rect.bottom
+      const left = Math.max(gutter, Math.min(rect.right - width, window.innerWidth - width - gutter))
+      const top = roomBelow < heightEstimate && rect.top > roomBelow
+        ? Math.max(gutter, rect.top - heightEstimate - 8)
+        : Math.max(gutter, Math.min(rect.bottom + 8, window.innerHeight - heightEstimate - gutter))
+      setMenuAnchor({ top, left, width })
+    }
+    updateAnchor()
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('resize', updateAnchor)
+    window.addEventListener('scroll', updateAnchor, true)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('resize', updateAnchor)
+      window.removeEventListener('scroll', updateAnchor, true)
+    }
+  }, [menuOpen])
 
   useEffect(() => {
     if (!confirmDelete) return undefined
@@ -56,8 +90,8 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
       const safeName = space.name.replace(/[^\w-]+/g, '_') || 'space'
       const path = await saveFileDialog({
         title: 'Export Space',
-        defaultPath: `${safeName}.orbitspace.json`,
-        filters: [{ name: 'Orbit Space', extensions: ['json'] }],
+        defaultPath: `${safeName}.soulspace.json`,
+        filters: [{ name: 'Soul Space', extensions: ['json'] }],
       })
       if (!path) return
       await api.exportSpace(space.id, path)
@@ -76,7 +110,7 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
     setMenuOpen(false)
     try {
       await api.pinSpaceShortcut(space.id)
-      notify(`Pinned to Desktop — double-click “Orbit - ${space.name}” to launch straight into the game`)
+      notify(`Pinned to Desktop — double-click “Soul - ${space.name}” to launch straight into the game`)
     } catch (e) {
       notify(String(e), 'error')
     }
@@ -101,22 +135,27 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
           <SpaceIcon name={space.icon} size={30} />
         </div>
         <button
+          ref={menuButtonRef}
           className="space-menu-btn"
           title="Options"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
           onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o) }}
-          onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
         >
           <IconMore size={18} />
         </button>
-        {menuOpen && (
-          <div className="space-menu" onMouseDown={(e) => e.preventDefault()}>
-            <button onClick={() => { setMenuOpen(false); onEdit(space) }}><IconEdit size={15} /> Edit</button>
-            <button onClick={pinToDesktop}><IconExternal size={15} /> Pin to Desktop</button>
-            <button onClick={duplicate}><IconCopy size={15} /> Duplicate</button>
-            <button onClick={exportSpace}><IconShare size={15} /> Export</button>
-            <button onClick={openFolder}><IconFolder size={15} /> Open folder</button>
-            <button className="danger" onClick={() => { setMenuOpen(false); setConfirmDelete(true) }}><AppIcon name="trash" size={16} /> Delete</button>
-          </div>
+        {menuOpen && menuAnchor && createPortal(
+          <div className="menu-layer" onPointerDown={(e) => { if (e.target === e.currentTarget) setMenuOpen(false) }}>
+            <div className="space-menu space-menu-pop" role="menu" style={{ top: menuAnchor.top, left: menuAnchor.left, width: menuAnchor.width }} onMouseDown={(e) => e.preventDefault()}>
+              <button onClick={() => { setMenuOpen(false); onEdit(space) }}><IconEdit size={15} /> Edit</button>
+              <button onClick={pinToDesktop}><IconExternal size={15} /> Pin to Desktop</button>
+              <button onClick={duplicate}><IconCopy size={15} /> Duplicate</button>
+              <button onClick={exportSpace}><IconShare size={15} /> Export</button>
+              <button onClick={openFolder}><IconFolder size={15} /> Open folder</button>
+              <button className="danger" onClick={() => { setMenuOpen(false); setConfirmDelete(true) }}><AppIcon name="trash" size={16} /> Delete</button>
+            </div>
+          </div>,
+          document.body,
         )}
       </div>
 

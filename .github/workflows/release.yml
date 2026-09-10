@@ -40,7 +40,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
-          releaseName: 'Orbit Launcher v__VERSION__'
+          releaseName: 'Soul Launcher v__VERSION__'
           releaseBody: 'Windows installer. Assets are signed for the in-app updater — existing installs update automatically.'
           releaseDraft: false
           prerelease: false

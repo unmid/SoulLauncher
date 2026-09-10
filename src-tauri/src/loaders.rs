@@ -353,7 +353,7 @@ async fn download_file(http: &reqwest::Client, url: &str, dest: &PathBuf) -> Res
 }
 
 // ---------------------------------------------------------------------------
-// OptiFine ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â same layout the official OptiFine installer creates for the
+// OptiFine — same layout the official OptiFine installer creates for the
 // vanilla launcher: the installer jar itself becomes a library,
 // launchwrapper-of is extracted, and a small profile (inheritsFrom vanilla)
 // adds OptiFineTweaker. The tweaker applies OptiFine's pre-baked patches at
@@ -383,7 +383,7 @@ impl OfEntry {
 }
 
 /// The mirror's full build list, fetched ONCE per 30 minutes and shared by the
-/// version picker and the installer ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â checking builds for another MC version
+/// version picker and the installer — checking builds for another MC version
 /// is instant after the first call. (The wizard used to download the whole
 /// list every single time, which is what made it feel slow.)
 static OF_LIST_CACHE: std::sync::OnceLock<tokio::sync::Mutex<Option<(std::time::Instant, std::sync::Arc<Vec<OfEntry>>)>>> =
@@ -474,7 +474,7 @@ pub async fn install_optifine(
         if cached_ok {
             return Ok(ofid);
         }
-        // Older Orbit builds wrote a broken profile (vanilla main class ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â the
+        // Older Orbit builds wrote a broken profile (vanilla main class — the
         // tweaker never ran). Regenerate it.
         let _ = std::fs::remove_file(&cached_json);
     }
@@ -557,7 +557,7 @@ pub async fn install_optifine(
         && vanilla_json.get("minecraftArguments").is_some();
 
     // VERIFIED against the official OptiFine installer (optifine/Installer.class):
-    // the generated launcher profile ALWAYS uses launchwrapper's own main class ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
+    // the generated launcher profile ALWAYS uses launchwrapper's own main class —
     // the tweaker is a LaunchWrapper ITweaker, so with the vanilla main class it
     // would simply never run.
     let json = if is_legacy {

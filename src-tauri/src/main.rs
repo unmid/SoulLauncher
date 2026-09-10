@@ -1,4 +1,4 @@
-// Orbit Launcher (beta) - Rust core
+// Soul Launcher - Rust core
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod accounts;
@@ -14,6 +14,7 @@ mod mojang;
 mod profile;
 mod remote;
 mod servers;
+mod soulclient;
 mod spaces;
 mod storage;
 mod store;
@@ -176,7 +177,7 @@ fn update_space(state: State<AppState>, space: spaces::Space) -> Result<spaces::
 // desktop. The shortcut runs the app with `--space <id>`; the frontend reads
 // launch_args on startup and plays that Space immediately.
 
-fn shortcut_path(space_name: &str) -> Result<std::path::PathBuf, String> {
+fn shortcut_path(root: &PathBuf, space_name: &str) -> Result<std::path::PathBuf, String> {
     let desktop = dirs::desktop_dir().ok_or("Couldn't find the Desktop folder")?;
     let safe: String = space_name
         .chars()
@@ -185,15 +186,50 @@ fn shortcut_path(space_name: &str) -> Result<std::path::PathBuf, String> {
         .trim()
         .to_string();
     let safe = if safe.is_empty() { "Space".to_string() } else { safe };
-    Ok(desktop.join(format!("Orbit - {safe}.lnk")))
+    let lnk = desktop.join(format!("Soul - {safe}.lnk"));
+    // Two Spaces with the same name must not fight over one shortcut: if the
+    // file already belongs to another Space, this one gets a tagged name.
+    if lnk.exists() {
+        let taken = spaces::load_spaces(root)
+            .iter()
+            .any(|s| s.shortcut.as_deref() == Some(lnk.to_string_lossy().as_ref()));
+        if taken {
+            let tag = uuid::Uuid::new_v4().simple().to_string()[..6].to_string();
+            return Ok(desktop.join(format!("Soul - {safe} ({tag}).lnk")));
+        }
+    }
+    Ok(lnk)
+}
+
+/// Run PowerShell without flashing a console window over the launcher.
+fn run_hidden_powershell(script: &str) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let status = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err("Windows wouldn't create the shortcut".into());
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = script;
+        Err("Desktop shortcuts are Windows-only".into())
+    }
 }
 
 #[tauri::command]
 fn pin_space_shortcut(state: State<AppState>, space_id: String) -> Result<String, String> {
     let all = state.spaces();
-    let space = all.iter().find(|s| s.id == space_id).ok_or("Space not found")?;
+    let space = all.iter().find(|s| s.id == space_id).ok_or("Space not found")?.clone();
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let lnk = shortcut_path(&space.name)?;
+    let lnk = shortcut_path(&state.root, &space.name)?;
     let work = exe.parent().map(|p| p.to_path_buf()).unwrap_or_default();
     // The shortcut carries the same icon the Space shows inside the app.
     let icon = icongen::write_space_ico(&state.root, &space.id, &space.icon)
@@ -205,7 +241,7 @@ fn pin_space_shortcut(state: State<AppState>, space_id: String) -> Result<String
          $sc.Arguments = '--space {}'; \
          $sc.WorkingDirectory = '{}'; \
          $sc.IconLocation = '{}'; \
-         $sc.Description = 'Play {} in Orbit Launcher'; \
+         $sc.Description = 'Play {} in Soul Launcher'; \
          $sc.Save()",
         lnk.display(),
         exe.display(),
@@ -214,25 +250,49 @@ fn pin_space_shortcut(state: State<AppState>, space_id: String) -> Result<String
         icon.display(),
         space.name.replace('\'', "''"),
     );
-    let status = std::process::Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &ps])
-        .status()
-        .map_err(|e| e.to_string())?;
-    if !status.success() {
-        return Err("Couldn't create the shortcut".into());
+    run_hidden_powershell(&ps)?;
+
+    // remember the exact path so a later unpin removes the right file
+    let mut all = state.spaces();
+    if let Some(slot) = all.iter_mut().find(|s| s.id == space_id) {
+        slot.shortcut = Some(lnk.to_string_lossy().to_string());
+        let _ = state.persist_spaces(&all);
     }
     Ok(lnk.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 fn unpin_space_shortcut(state: State<AppState>, space_id: String) -> Result<(), String> {
-    let all = state.spaces();
-    let space = all.iter().find(|s| s.id == space_id).ok_or("Space not found")?;
-    let lnk = shortcut_path(&space.name)?;
-    if lnk.exists() {
-        std::fs::remove_file(&lnk).map_err(|e| e.to_string())?;
+    let mut all = state.spaces();
+    let space = all
+        .iter_mut()
+        .find(|s| s.id == space_id)
+        .ok_or("Space not found")?
+        .clone();
+    // remove the recorded path first (it survives Space renames), then the
+    // plain "Soul/Orbit - <name>" file an older build may have left behind.
+    let mut removed = false;
+    if let Some(path) = space.shortcut.clone() {
+        if std::fs::remove_file(&path).is_ok() {
+            removed = true;
+        }
     }
-    icongen::remove_space_ico(&state.root, &space.id);
+    if !removed {
+        let desktop = dirs::desktop_dir().ok_or("Couldn't find the Desktop folder")?;
+        for name in [
+            format!("Soul - {}.lnk", space.name),
+            format!("Orbit - {}.lnk", space.name),
+        ] {
+            if std::fs::remove_file(desktop.join(&name)).is_ok() {
+                break;
+            }
+        }
+    }
+    if let Some(slot) = all.iter_mut().find(|s| s.id == space_id) {
+        slot.shortcut = None;
+    }
+    state.persist_spaces(&all)?;
+    icongen::remove_space_ico(&state.root, &space_id);
     Ok(())
 }
 
@@ -298,6 +358,7 @@ fn import_space(state: State<AppState>, path: String) -> Result<spaces::Space, S
         created_at: spaces::now_secs(),
         last_played: None,
         ram_gb: export.ram_gb,
+        shortcut: None,
     };
     let mut all = state.spaces();
     all.push(space.clone());
@@ -328,7 +389,7 @@ fn import_space(state: State<AppState>, path: String) -> Result<spaces::Space, S
 }
 
 // ---------------------------------------------------------------------------
-// content (mods / resource packs / shaders ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Modrinth + CurseForge)
+// content (mods / resource packs / shaders—Modrinth + CurseForge)
 
 #[tauri::command]
 async fn search_content(
@@ -459,7 +520,7 @@ async fn get_home_pages(state: State<'_, AppState>) -> Result<Vec<String>, Strin
 
 #[tauri::command]
 async fn get_server_list(state: State<'_, AppState>) -> Result<Vec<servers::RemoteServer>, String> {
-    Ok(match remote::fetch_updater_file(&state.http, &state.root, "olserverlist.json").await {
+    Ok(match remote::fetch_updater_file(&state.http, &state.root, "serverlist.json").await {
         Some(raw) => servers::parse_server_list(&raw),
         None => vec![],
     })
@@ -467,9 +528,44 @@ async fn get_server_list(state: State<'_, AppState>) -> Result<Vec<servers::Remo
 
 #[tauri::command]
 async fn ping_server(host: String, port: Option<u16>) -> Result<servers::PingResult, String> {
-    tokio::task::spawn_blocking(move || servers::ping_server(&host, port.unwrap_or(25565), 3500))
+    // DNS with a hard deadline — Windows name resolution can otherwise sit on
+    // a dead resolver for many seconds and the row would spin "pinging…".
+    const DNS_TIMEOUT_MS: u64 = 2500;
+    const PING_TIMEOUT_MS: u64 = 3500;
+    let host = host.trim().to_string();
+    let port = port.unwrap_or(25565);
+    let addr = {
+        let mut lookup = tokio::time::timeout(
+            std::time::Duration::from_millis(DNS_TIMEOUT_MS),
+            tokio::net::lookup_host((host.as_str(), port)),
+        )
+        .await
+        .map_err(|_| format!("Couldn't look up {host} in time"))?
+        .map_err(|e| format!("DNS lookup failed: {e}"))?;
+        lookup
+            .next()
+            .ok_or("No address for host")?
+    };
+    tokio::task::spawn_blocking(move || servers::ping_addr(addr, host.as_str(), port, PING_TIMEOUT_MS))
         .await
         .map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------------
+// Soul Client — our own FPS-tuned Fabric client, served from this repo.
+
+#[tauri::command]
+async fn list_soul_clients(state: State<'_, AppState>) -> Result<Vec<soulclient::SoulClientVersion>, String> {
+    soulclient::fetch_versions(&state.http, &state.root).await
+}
+
+#[tauri::command]
+async fn install_soul_client(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    version: String,
+) -> Result<spaces::Space, String> {
+    soulclient::install(app, state.http.clone(), state.root.clone(), &version).await
 }
 
 // ---------------------------------------------------------------------------
@@ -582,7 +678,7 @@ async fn fresh_mc_token(state: &State<'_, AppState>, account_id: &str) -> Result
     let token = updated
         .access_token
         .clone()
-        .ok_or("This account has no Minecraft token ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â sign in again")?;
+        .ok_or("This account has no Minecraft token—sign in again")?;
     Ok((updated, token))
 }
 
@@ -848,6 +944,7 @@ async fn install_modpack(
         created_at: spaces::now_secs(),
         last_played: None,
         ram_gb: None,
+        shortcut: None,
     };
     if !loaders::LOADER_KINDS.contains(&space.loader.as_str()) {
         space.loader = "vanilla".into();
@@ -892,6 +989,7 @@ async fn import_modpack_file(
         created_at: spaces::now_secs(),
         last_played: None,
         ram_gb: None,
+        shortcut: None,
     };
     if !loaders::LOADER_KINDS.contains(&space.loader.as_str()) {
         space.loader = "vanilla".into();
@@ -949,7 +1047,7 @@ fn spawn_pack_install(
         });
 
         let http = reqwest::Client::builder()
-            .user_agent(concat!("OrbitLauncher/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("SoulLauncher/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(std::time::Duration::from_secs(20))
             .build()
             .expect("http client");
@@ -1147,7 +1245,7 @@ fn record_log(app: &AppHandle, root: &PathBuf, level: &str, source: &str, messag
         message: clean,
     };
     if let Ok(line) = serde_json::to_string(&payload) {
-        let path = root.join("logs").join("orbit.log");
+        let path = root.join("logs").join("soul.log");
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -1161,7 +1259,7 @@ fn record_log(app: &AppHandle, root: &PathBuf, level: &str, source: &str, messag
 
 #[tauri::command]
 fn read_logs(state: State<AppState>) -> Result<String, String> {
-    let path = state.root.join("logs").join("orbit.log");
+    let path = state.root.join("logs").join("soul.log");
     let raw = std::fs::read(&path).unwrap_or_default();
     let start = raw.len().saturating_sub(512 * 1024);
     Ok(String::from_utf8_lossy(&raw[start..]).to_string())
@@ -1194,7 +1292,7 @@ async fn launch_space(
         .and_then(|id| accounts_list.iter().find(|a| a.id == id))
         .cloned()
         .or_else(|| accounts_list.first().cloned())
-        .ok_or("Add an account first ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â it takes 10 seconds!")?;
+        .ok_or("Add an account first—it takes 10 seconds!")?;
 
     let account = if account.kind == "microsoft" {
         accounts::ms_refresh(&state.http, &account)
@@ -1362,12 +1460,12 @@ impl Drop for LaunchGuard {
             ProgressPayload {
                 space_id: self.sid.clone(),
                 stage: "error".into(),
-                message: "Something crashed inside the launcher ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â please try again".into(),
+                message: "Something crashed inside the launcher—please try again".into(),
                 done: 0,
                 total: 0,
             },
         );
-        record_log(&self.app, &self.root, "error", "launcher", "Something crashed inside the launcher ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â please try again");
+        record_log(&self.app, &self.root, "error", "launcher", "Something crashed inside the launcher—please try again");
     }
 }
 
@@ -1403,7 +1501,7 @@ fn main() {
     let _ = store::ensure_dirs(&root);
     let settings = store::load_settings(&root);
 
-    // Hidden self-test: `orbit-launcher --selftest <mcVersion> [loader] [--run]`
+    // Hidden self-test: `soul-launcher --selftest <mcVersion> [loader] [--run]`
     let argv: Vec<String> = std::env::args().collect();
     if let Some(pos) = argv.iter().position(|a| a == "--selftest") {
         let mc = argv.get(pos + 1).cloned().unwrap_or_else(|| "1.21.1".into());
@@ -1414,7 +1512,7 @@ fn main() {
     }
 
     let http = reqwest::Client::builder()
-        .user_agent(concat!("OrbitLauncher/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("SoulLauncher/", env!("CARGO_PKG_VERSION")))
         .pool_max_idle_per_host(64)
         .connect_timeout(std::time::Duration::from_secs(20))
         .build()
@@ -1447,6 +1545,8 @@ fn main() {
             open_space_folder,
             export_space,
             import_space,
+            list_soul_clients,
+            install_soul_client,
             search_content,
             content_details,
             install_content,
@@ -1487,23 +1587,23 @@ fn main() {
             {
                 let _window = app.get_webview_window("main");
             }
-            record_log(app.handle(), &root, "info", "system", "Orbit Launcher (beta) started");
+            record_log(app.handle(), &root, "info", "system", "Soul Launcher started");
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running Orbit Launcher");
+        .expect("error while running Soul Launcher");
 }
 
 // ---------------------------------------------------------------------------
 // Self test: drives the REAL launch pipeline from the command line.
 
 fn selftest(root: PathBuf, settings: store::Settings, mc: String, loader: String, run: bool) -> i32 {
-    println!("=== Orbit Launcher self-test ===");
+    println!("=== Soul Launcher self-test ===");
     println!("root: {}", root.display());
     println!("version: {mc} | loader: {loader} | run: {run}");
 
     let http = reqwest::Client::builder()
-        .user_agent(concat!("OrbitLauncher/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("SoulLauncher/", env!("CARGO_PKG_VERSION")))
         .pool_max_idle_per_host(64)
         .build()
         .expect("http client");
@@ -1531,6 +1631,7 @@ fn selftest(root: PathBuf, settings: store::Settings, mc: String, loader: String
             created_at: spaces::now_secs(),
             last_played: None,
             ram_gb: Some(2),
+            shortcut: None,
         };
 
         let emit = Arc::new(|stage: &str, message: &str, done: u64, total: u64| {

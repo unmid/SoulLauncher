@@ -4,19 +4,17 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 
 const loaderVersionCache = new Map()
 const isTauriRuntime = () => typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
-const SERVER_LIST_URL = 'https://raw.githubusercontent.com/unmid/OL-updater/main/olserverlist.json'
+const SERVER_LIST_URL = 'https://raw.githubusercontent.com/unmid/SoulLauncher/main/serverlist.json'
 const PREVIEW_GAME_VERSIONS = [
-  { id: '1.21.8', kind: 'release', releaseTime: '' }, { id: '25w31a', kind: 'snapshot', releaseTime: '' },
-  { id: '1.21.7', kind: 'release', releaseTime: '' }, { id: '1.21.6', kind: 'release', releaseTime: '' },
-  { id: '1.21.5', kind: 'release', releaseTime: '' }, { id: '1.21.4', kind: 'release', releaseTime: '' },
-  { id: '1.21.1', kind: 'release', releaseTime: '' }, { id: 'b1.7.3', kind: 'old_beta', releaseTime: '' },
-  { id: '1.20.6', kind: 'release', releaseTime: '' }, { id: '1.20.4', kind: 'release', releaseTime: '' },
-  { id: '1.20.1', kind: 'release', releaseTime: '' }, { id: 'rd-132211', kind: 'old_alpha', releaseTime: '' },
-  { id: '1.19.4', kind: 'release', releaseTime: '' }, { id: '1.18.2', kind: 'release', releaseTime: '' },
-  { id: '1.16.5', kind: 'release', releaseTime: '' }, { id: '1.12.2', kind: 'release', releaseTime: '' },
-  { id: '1.8.9', kind: 'release', releaseTime: '' },
+  { id: '26.2', kind: 'release', releaseTime: '' }, { id: '26.3-rc-1', kind: 'snapshot', releaseTime: '' },
+  { id: '26.1.2', kind: 'release', releaseTime: '' }, { id: '26.1.1', kind: 'release', releaseTime: '' },
+  { id: '26.1', kind: 'release', releaseTime: '' }, { id: '1.21.11', kind: 'release', releaseTime: '' },
+  { id: '1.21.8', kind: 'release', releaseTime: '' }, { id: '1.21.1', kind: 'release', releaseTime: '' },
+  { id: 'b1.7.3', kind: 'old_beta', releaseTime: '' }, { id: '1.20.1', kind: 'release', releaseTime: '' },
+  { id: 'rd-132211', kind: 'old_alpha', releaseTime: '' }, { id: '1.16.5', kind: 'release', releaseTime: '' },
+  { id: '1.12.2', kind: 'release', releaseTime: '' }, { id: '1.8.9', kind: 'release', releaseTime: '' },
 ]
-const PREVIEW_SERVERS = [{ name: 'Orbit Community', ip: 'play.orbit.example', port: 25565, icon: '', motd: 'Preview server list', category: 'Community', sponsored: false, minVersion: '1.21' }]
+const PREVIEW_SERVERS = [{ name: 'Soul Community', ip: 'play.soul.example', port: 25565, icon: '', motd: 'Preview server list', category: 'Community', sponsored: false, minVersion: '26.2' }]
 
 export const api = {
   // settings
@@ -78,6 +76,13 @@ export const api = {
     invoke('import_content_files', { spaceId, paths, kind, world }),
   listSpaceWorlds: (spaceId) => isTauriRuntime() ? invoke('list_space_worlds', { spaceId }) : Promise.resolve([]),
   assignDatapack: (spaceId, projectId, world) => invoke('assign_datapack', { spaceId, projectId, world }),
+
+  // soul client (official tuned FPS client)
+  listSoulClients: () => isTauriRuntime()
+    ? invoke('list_soul_clients')
+    : Promise.resolve([{ id: '26.2', name: 'Soul Client 26.2', mcVersion: '26.2', zip: 'client/version-26.2/soul-client-26-2.zip', modCount: 24, released: '', notes: 'Preview build' }]),
+  installSoulClient: (version) =>
+    invoke('install_soul_client', { version }),
 
   // remote + servers
   getHomePages: () => invoke('get_home_pages'),

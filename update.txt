@@ -1,21 +1,21 @@
-Orbit Launcher — Update Policy
+Soul Launcher — Update Policy
 ==============================
 
 Prompt shown to users when an update is available:
 
-  "A new version of Orbit Launcher is available. The update will be
+  "A new version of Soul Launcher is available. The update will be
    downloaded and installed automatically — you do not need to reinstall
-   the app. Orbit Launcher will restart to complete the update."
+   the app. Soul Launcher will restart to complete the update."
 
 How it works
 ------------
 
 1. Every release is built by GitHub Actions and published to
-   https://github.com/unmid/OrbitLauncher/releases as a version tag
+   https://github.com/unmid/SoulLauncher/releases as a version tag
    (v1.0.0, v1.1.0, ...). Each release carries signed updater artifacts
    (latest.json plus .sig signatures) for Windows.
 
-2. On startup, Orbit Launcher checks the latest release tag through the
+2. On startup, Soul Launcher checks the latest release tag through the
    Tauri updater. If a newer version exists, it downloads the signed
    package in the background, verifies the signature, installs it in
    place, and restarts the app.

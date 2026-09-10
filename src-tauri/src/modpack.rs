@@ -203,7 +203,7 @@ fn parse_dependency_loaders(deps: &Value) -> (String, Option<String>) {
 /// Bytes-only variant (builds a short-lived client) for local file imports.
 pub async fn plan_from_cf_zip_bytes(bytes: &[u8]) -> Result<PackPlan, String> {
     let http = reqwest::Client::builder()
-        .user_agent(concat!("OrbitLauncher/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("SoulLauncher/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(20))
         .build()
         .map_err(|e| e.to_string())?;
@@ -385,7 +385,7 @@ fn extract_tree_to_temp(arch: &mut MemZip<'_>, prefix: &str) -> Result<Option<Pa
     if names.is_empty() {
         return Ok(None);
     }
-    let dir = std::env::temp_dir().join(format!("orbit-pack-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("soul-pack-{}", uuid::Uuid::new_v4()));
     for rel in names {
         let mut f = arch
             .by_name(&format!("{prefix}{rel}"))

@@ -21,6 +21,10 @@ export default function SpaceWizard({ existing = null, settings, onClose, onSave
   const [loader, setLoader] = useState(existing?.loader || 'fabric')
   const [loaderVersion, setLoaderVersion] = useState(existing?.loaderVersion || null)
   const [loaderVersions, setLoaderVersions] = useState([])
+  const [soulBuilds, setSoulBuilds] = useState([])
+  const [soulVersion, setSoulVersion] = useState(null)
+  const [soulLoading, setSoulLoading] = useState(!existing)
+  const [soulError, setSoulError] = useState('')
   const [picked, setPicked] = useState([]) // create mode only: {projectId,title,iconUrl,kind,source}
   const [name, setName] = useState(existing?.name || '')
   const [icon, setIcon] = useState(existing?.icon || 'crafting-table')
@@ -35,10 +39,20 @@ export default function SpaceWizard({ existing = null, settings, onClose, onSave
       .then(setVersions)
       .catch((e) => { notify(String(e), 'error'); setVersions([]) })
     api.listInstalledVersions().then((v) => setInstalled(new Set(v))).catch(() => {})
+    if (existing) return
+    api.listSoulClients()
+      .then((list) => {
+        const builds = Array.isArray(list) ? list : []
+        setSoulBuilds(builds)
+        if (builds.length > 0 && builds[0]?.mcVersion) setSoulVersion(builds[0].id)
+        if (builds.length === 0) setSoulError('No Soul Client builds are published yet.')
+      })
+      .catch((e) => setSoulError(String(e)))
+      .finally(() => setSoulLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!mcVersion || loader === 'vanilla') { setLoaderVersions([]); setLoaderVersion(null); setLoaderBusy(false); return }
+    if (!mcVersion || loader === 'vanilla' || loader === 'soul') { setLoaderVersions([]); setLoaderVersion(null); setLoaderBusy(false); return }
     let cancelled = false
     setLoaderBusy(true)
     api.listLoaderVersions(loader, mcVersion)
@@ -51,6 +65,28 @@ export default function SpaceWizard({ existing = null, settings, onClose, onSave
       .catch(() => { if (!cancelled) { setLoaderVersions([]); setLoaderVersion(null); setLoaderBusy(false) } })
     return () => { cancelled = true }
   }, [mcVersion, loader]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedSoul = useMemo(() => soulBuilds.find((build) => build.id === soulVersion) || null, [soulBuilds, soulVersion])
+
+  const chooseLoader = (key) => {
+    setLoader(key)
+    setLoaderVersion(null)
+    if (key === 'soul') {
+      const build = selectedSoul || soulBuilds[0] || null
+      if (build) {
+        setSoulVersion(build.id)
+        if (build.mcVersion) setMcVersion(build.mcVersion)
+        setIcon('soul')
+        setColor('#f26a3c')
+      }
+    }
+  }
+
+  const chooseSoulBuild = (id) => {
+    setSoulVersion(id)
+    const build = soulBuilds.find((item) => item.id === id)
+    if (build?.mcVersion) setMcVersion(build.mcVersion)
+  }
 
   const filteredVersions = useMemo(() => {
     if (!versions) return []
@@ -67,7 +103,7 @@ export default function SpaceWizard({ existing = null, settings, onClose, onSave
 
   const canNext =
     step === 0 ? !!mcVersion :
-    step === 1 ? (loader === 'vanilla' || !!loaderVersion || (!loaderBusy && loaderVersions.length === 0)) :
+    step === 1 ? (loader === 'soul' ? !!selectedSoul : (loader === 'vanilla' || !!loaderVersion || (!loaderBusy && loaderVersions.length === 0))) :
     step === 2 ? true :
     name.trim().length > 0
 
@@ -89,6 +125,15 @@ export default function SpaceWizard({ existing = null, settings, onClose, onSave
   const save = async () => {
     setSaving(true)
     try {
+      if (loader === 'soul' && !isEdit) {
+        if (!selectedSoul) throw new Error('Pick a Soul Client build first.')
+        setSaveMsg(`Installing ${selectedSoul.name}…`)
+        const built = await api.installSoulClient(selectedSoul.id)
+        onSpaceCreated?.(built.id)
+        notify(`"${built.name}" (Minecraft ${built.mcVersion}) is being set up — watch its card fill up`)
+        onClose()
+        return
+      }
       if (isEdit) {
         await api.updateSpace({ ...existing, name: name.trim(), icon, color, mcVersion, loader, loaderVersion: loader === 'vanilla' ? null : loaderVersion })
         onSaved()
@@ -225,15 +270,54 @@ export default function SpaceWizard({ existing = null, settings, onClose, onSave
 
           {step === 1 && (
             <div className="wizard-page">
-              <div className="wizard-hint">Pure vanilla, a mod loader, or OptiFine?</div>
+              <div className="wizard-hint">Pure vanilla, our tuned client, a mod loader, or OptiFine?</div>
+              <button
+                type="button"
+                className={`soul-client-card ${loader === 'soul' ? 'selected' : ''}`}
+                onClick={() => chooseLoader('soul')}
+                aria-pressed={loader === 'soul'}
+              >
+                <span className="soul-client-mark"><LoaderMark.soul size={30} /></span>
+                <span className="soul-client-text">
+                  <span className="loader-label">Soul Client</span>
+                  <span className="loader-desc">{LOADER_META.soul.desc}</span>
+                  <span className="soul-client-meta">
+                    {soulLoading
+                      ? <><span className="mini-spinner" /> Checking available builds…</>
+                      : selectedSoul
+                        ? `${selectedSoul.name} · Minecraft ${selectedSoul.mcVersion} · ${selectedSoul.modCount || ''} mods`.replace('  ', ' ')
+                        : (soulError || 'No Soul Client builds are published yet.')}
+                  </span>
+                </span>
+                {loader === 'soul' && <span className="version-row-check"><IconCheck size={16} /></span>}
+              </button>
+              {loader === 'soul' && (
+                <div className="field">
+                  <label className="field-label">Client build</label>
+                  <Dropdown
+                    value={soulVersion}
+                    onChange={chooseSoulBuild}
+                    options={soulBuilds.map((build) => ({
+                      value: build.id,
+                      label: `${build.name} · Minecraft ${build.mcVersion}`,
+                      hint: build.modCount ? `${build.modCount} mods` : undefined,
+                    }))}
+                    placeholder={soulLoading ? 'Checking builds…' : soulError || 'No builds available'}
+                  />
+                  <div className="field-hint">
+                    A Soul Client build chooses its own Minecraft and Fabric versions. The launcher installs the loader,
+                    then fills the Space’s mods folder from the build manifest.
+                  </div>
+                </div>
+              )}
               <div className="loader-grid">
-                {Object.entries(LOADER_META).map(([key, meta]) => {
+                {Object.entries(LOADER_META).filter(([key]) => key !== 'soul').map(([key, meta]) => {
                   const Mark = LoaderMark[key] || LoaderMark.vanilla
                   return (
                     <button
                       key={key}
                       className={`loader-card ${loader === key ? 'selected' : ''}`}
-                      onClick={() => { setLoader(key); setLoaderVersion(null) }}
+                      onClick={() => chooseLoader(key)}
                     >
                       <span className="loader-mark"><Mark size={26} /></span>
                       <span className="loader-card-text">
@@ -244,7 +328,7 @@ export default function SpaceWizard({ existing = null, settings, onClose, onSave
                   )
                 })}
               </div>
-              {loader !== 'vanilla' && loaderVersions.length > 0 && (
+              {loader !== 'vanilla' && loader !== 'soul' && loaderVersions.length > 0 && (
                 <div className="field">
                   <label className="field-label">{LOADER_META[loader]?.label} version</label>
                   <Dropdown
@@ -255,10 +339,10 @@ export default function SpaceWizard({ existing = null, settings, onClose, onSave
                   />
                 </div>
               )}
-              {loader !== 'vanilla' && mcVersion && loaderBusy && (
+              {loader !== 'vanilla' && loader !== 'soul' && mcVersion && loaderBusy && (
                 <div className="loading-line"><span className="mini-spinner" /> Checking versions…</div>
               )}
-              {loader !== 'vanilla' && mcVersion && !loaderBusy && loaderVersions.length === 0 && (
+              {loader !== 'vanilla' && loader !== 'soul' && mcVersion && !loaderBusy && loaderVersions.length === 0 && (
                 <div className="mods-empty" style={{ padding: '20px 16px' }}>
                   <div>No {LOADER_META[loader]?.label} build for Minecraft {mcVersion} yet</div>
                   <div className="mods-empty-sub">Try a slightly older Minecraft version — loader support usually lands a few weeks after release.</div>
@@ -282,7 +366,7 @@ export default function SpaceWizard({ existing = null, settings, onClose, onSave
               )}
               <ModsBrowser
                 mcVersion={mcVersion}
-                loader={loader}
+                loader={loader === 'soul' ? 'fabric' : loader}
                 spacesModList={isEdit ? existing.mods : picked}
                 onPick={pick}
                 onUnpick={unpick}

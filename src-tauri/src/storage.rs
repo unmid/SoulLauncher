@@ -106,7 +106,7 @@ pub fn breakdown(root: &PathBuf) -> Vec<StorageItem> {
         "Game logs",
         root.clone(),
         true,
-        "orbit-game.log files left after playing. Safe to delete.",
+        "soul-game.log files left after playing. Safe to delete.",
     );
     items
 }
@@ -122,7 +122,7 @@ pub fn clean_junk(root: &PathBuf) -> u64 {
     // remove per-space game logs + crash dumps
     if let Ok(spaces) = std::fs::read_dir(root.join("spaces")) {
         for space in spaces.flatten() {
-            for name in ["orbit-game.log", "hs_err_pid1.log"] {
+            for name in ["soul-game.log", "orbit-game.log", "hs_err_pid1.log"] {
                 let f = space.path().join(name);
                 if let Ok(md) = f.metadata() {
                     if md.is_file() {

@@ -76,7 +76,7 @@ fn default_rd() -> u32 {
     10
 }
 fn default_remote_base() -> String {
-    "https://api.github.com/repos/unmid/OL-updater/contents".into()
+    "https://api.github.com/repos/unmid/SoulLauncher/contents".into()
 }
 
 impl Default for Settings {
@@ -103,9 +103,18 @@ impl Default for Settings {
 }
 
 /// Root folder where everything (game files, spaces, accounts) lives.
+/// Upgrades from Orbit Launcher builds carry their data over automatically:
+/// the first Soul start renames the old folder in place — no re-downloads.
 pub fn data_root() -> PathBuf {
     let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-    base.join("OrbitLauncher")
+    let soul = base.join("SoulLauncher");
+    if !soul.exists() {
+        let legacy = base.join("OrbitLauncher");
+        if legacy.exists() {
+            let _ = fs::rename(&legacy, &soul);
+        }
+    }
+    soul
 }
 
 pub fn ensure_dirs(root: &PathBuf) -> std::io::Result<()> {

@@ -10,7 +10,10 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 const AUTH_API_BASE: &str = "https://openlauncher.api.codevbox.com";
-const AUTH_KEYCHAIN_SERVICE: &str = "OrbitLauncher";
+const AUTH_KEYCHAIN_SERVICE: &str = "SoulLauncher";
+/// Older builds stored Microsoft refresh tokens under the Orbit service name.
+/// New sign-ins use Soul; old credentials keep working through the fallback.
+const LEGACY_AUTH_KEYCHAIN_SERVICE: &str = "OrbitLauncher";
 
 // Dev build identity shipped with the open-source launcher.
 const DEV_BUILD_ID: &str = "20260601_010619";
@@ -128,18 +131,29 @@ pub fn store_refresh_token(account_key: &str, token: &str) {
     if let Ok(entry) = keyring::Entry::new(AUTH_KEYCHAIN_SERVICE, account_key) {
         let _ = entry.set_password(token);
     }
+    // Forget the migrated legacy credential so only the Soul entry remains.
+    if let Ok(entry) = keyring::Entry::new(LEGACY_AUTH_KEYCHAIN_SERVICE, account_key) {
+        let _ = entry.delete_credential();
+    }
 }
 
 pub fn load_refresh_token(account_key: &str) -> Option<String> {
-    keyring::Entry::new(AUTH_KEYCHAIN_SERVICE, account_key)
+    if let Ok(entry) = keyring::Entry::new(AUTH_KEYCHAIN_SERVICE, account_key) {
+        if let Ok(token) = entry.get_password() {
+            return Some(token);
+        }
+    }
+    keyring::Entry::new(LEGACY_AUTH_KEYCHAIN_SERVICE, account_key)
         .ok()?
         .get_password()
         .ok()
 }
 
 pub fn delete_refresh_token(account_key: &str) {
-    if let Ok(entry) = keyring::Entry::new(AUTH_KEYCHAIN_SERVICE, account_key) {
-        let _ = entry.delete_credential();
+    for service in [AUTH_KEYCHAIN_SERVICE, LEGACY_AUTH_KEYCHAIN_SERVICE] {
+        if let Ok(entry) = keyring::Entry::new(service, account_key) {
+            let _ = entry.delete_credential();
+        }
     }
 }
 
@@ -181,7 +195,7 @@ fn read_callback(listener: &TcpListener, timeout: std::time::Duration) -> Result
                 let mut buf = [0u8; 8192];
                 let n = stream.read(&mut buf).map_err(|e| e.to_string())?;
                 let req = String::from_utf8_lossy(&buf[..n]).to_string();
-                let body = "<html><head><title>Orbit Launcher</title></head><body style=\"font-family:sans-serif;background:#0b0b10;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0\"><div style=\"text-align:center\"><h1>You're signed in!</h1><p>You can close this tab and go back to Orbit Launcher.</p></div></body></html>";
+                let body = "<html><head><title>Soul Launcher</title></head><body style=\"font-family:sans-serif;background:#0b0e13;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0\"><div style=\"text-align:center\"><h1>You're signed in!</h1><p>You can close this tab and go back to Soul Launcher.</p></div></body></html>";
                 let resp = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                     body.len(),

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Soul Launcher — News</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#0b0e13; color:#fff; font-family:'Segoe UI', system-ui, -apple-system, sans-serif; }
+  .slider { position:relative; width:100%; height:100%; }
+  .slide { position:absolute; inset:0; opacity:0; pointer-events:none; transition:opacity .6s ease; }
+  .slide.active { opacity:1; pointer-events:auto; }
+  .bg { position:absolute; inset:0; }
+  .bg-one { background:
+      radial-gradient(110% 70% at 18% 10%, rgba(242,106,60,.44), transparent 62%),
+      radial-gradient(90% 80% at 88% 22%, rgba(62,161,217,.34), transparent 60%),
+      linear-gradient(135deg, #111722 0%, #0b0e13 62%, #131024 100%); }
+  .bg-two { background:
+      radial-gradient(80% 90% at 82% 12%, rgba(238,182,77,.34), transparent 60%),
+      radial-gradient(90% 75% at 12% 88%, rgba(141,122,224,.42), transparent 62%),
+      linear-gradient(135deg, #0f141c 0%, #141520 60%, #0b0e13 100%); }
+  .bg-three { background:
+      radial-gradient(90% 70% at 50% 0%, rgba(113,176,108,.30), transparent 60%),
+      radial-gradient(80% 80% at 85% 90%, rgba(79,196,181,.28), transparent 62%),
+      linear-gradient(135deg, #0e1319 0%, #111c22 58%, #0b0e13 100%); }
+  .bg-four { background:
+      radial-gradient(70% 80% at 20% 20%, rgba(239,143,165,.30), transparent 62%),
+      radial-gradient(90% 80% at 80% 80%, rgba(242,106,60,.28), transparent 60%),
+      linear-gradient(135deg, #131019 0%, #151522 55%, #0b0e13 100%); }
+  .grid {
+    position:absolute; inset:0; opacity:.22;
+    background-image:linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px);
+    background-size:44px 44px;
+    mask-image:radial-gradient(70% 70% at 50% 35%, #000 30%, transparent 78%);
+    -webkit-mask-image:radial-gradient(70% 70% at 50% 35%, #000 30%, transparent 78%);
+  }
+  .content { position:absolute; left:0; right:0; bottom:0; z-index:2; padding:28px 32px; display:flex; flex-direction:column; align-items:flex-start; gap:10px; }
+  .tag { font-size:11px; font-weight:800; letter-spacing:2px; text-transform:uppercase; color:#ffd9c5; opacity:.95; }
+  .content h1 { font-size:clamp(20px, 4vw, 34px); font-weight:800; line-height:1.15; text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  .content p { font-size:clamp(13px, 1.8vw, 15px); color:rgba(255,255,255,.86); max-width:600px; line-height:1.55; text-shadow:0 1px 4px rgba(0,0,0,.6); }
+  .brandline { display:inline-flex; align-items:center; gap:10px; }
+  .brandline img { width:34px; height:34px; border-radius:9px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); }
+  .btn { display:inline-flex; align-items:center; gap:8px; margin-top:6px; padding:11px 22px; border:none; border-radius:8px; cursor:pointer; font-size:14px; font-weight:700; text-decoration:none; transition:transform .15s ease, filter .15s ease; }
+  .btn:hover { transform:translateY(-2px); filter:brightness(1.08); }
+  .btn svg { width:17px; height:17px; fill:currentColor; }
+  .btn-row { display:flex; gap:10px; flex-wrap:wrap; }
+  .btn-update { background:#f26a3c; color:#fff; box-shadow:0 3px 14px rgba(242,106,60,.38); }
+  .btn-discord { background:#5865F2; color:#fff; }
+  .btn-github { background:#f5f5f5; color:#1a1a1a; }
+  .btn-ghost { background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.25); backdrop-filter:blur(4px); }
+  .rel-pill { display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700; letter-spacing:.5px; padding:6px 12px; border-radius:999px; background:rgba(242,106,60,.20); color:#ffd9c5; border:1px solid rgba(242,106,60,.45); }
+  .rel-notes { font-size:clamp(12px, 1.6vw, 14px); color:rgba(255,255,255,.82); max-width:620px; line-height:1.55; max-height:86px; overflow:hidden; text-shadow:0 1px 4px rgba(0,0,0,.6); -webkit-mask-image:linear-gradient(to bottom, #000 60%, transparent); mask-image:linear-gradient(to bottom, #000 60%, transparent); }
+  .rel-loading { display:inline-flex; align-items:center; gap:8px; color:rgba(255,255,255,.65); font-size:13px; }
+  .rel-loading .spin { width:14px; height:14px; border-radius:50%; border:2px solid rgba(255,255,255,.25); border-top-color:#fff; animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .rel-error { color:rgba(255,255,255,.58); font-size:13px; }
+  .nav { position:absolute; top:50%; transform:translateY(-50%); z-index:5; width:38px; height:38px; display:grid; place-items:center; background:rgba(0,0,0,.35); backdrop-filter:blur(6px); border:1px solid rgba(255,255,255,.15); border-radius:50%; color:#fff; font-size:18px; cursor:pointer; opacity:0; transition:opacity .25s ease, background .2s ease; user-select:none; }
+  .slider:hover .nav { opacity:1; }
+  .nav:hover { background:rgba(0,0,0,.6); }
+  .nav.prev { left:14px; }
+  .nav.next { right:14px; }
+  .dots { position:absolute; bottom:14px; right:20px; z-index:5; display:flex; gap:7px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.35); border:none; cursor:pointer; padding:0; transition:background .25s ease, transform .25s ease; }
+  .dot.active { background:#fff; transform:scale(1.25); }
+</style>
+</head>
+<body>
+<div class="slider" id="slider">
+  <div class="slide active">
+    <div class="bg bg-one"></div><div class="grid"></div>
+    <div class="content">
+      <span class="tag">Latest Update</span>
+      <h1 class="brandline"><img src="../public/logo/logo.webp" alt="Soul Launcher logo"><span id="rel-head">Soul Launcher</span></h1>
+      <div id="rel-meta"></div>
+      <div class="rel-notes" id="rel-notes"></div>
+      <div class="btn-row">
+        <button class="btn btn-update" id="btn-update">
+          <svg viewBox="0 0 24 24"><path d="M12 3v10.6l-3.8-3.8-1.4 1.4 6.2 6.2 6.2-6.2-1.4-1.4-3.8 3.8V3h-2zM4.5 19h15v2h-15z"/></svg>
+          <span id="btn-update-text">Checking Soul releases…</span>
+        </button>
+        <a class="btn btn-ghost" id="www" target="_blank" rel="noopener">Releases page</a>
+      </div>
+    </div>
+  </div>
+  <div class="slide">
+    <div class="bg bg-two"></div><div class="grid"></div>
+    <div class="content">
+      <span class="tag">Soul Client</span>
+      <h1>FPS first, clutter never.</h1>
+      <p>Soul Client 26.2 pairs Minecraft 26.2 with Fabric 0.19.5 and 24 hand-checked performance, stability, and options mods. Install it from the launcher in one click.</p>
+    </div>
+  </div>
+  <div class="slide">
+    <div class="bg bg-three"></div><div class="grid"></div>
+    <div class="content">
+      <span class="tag">Spaces</span>
+      <h1>One click per Minecraft life.</h1>
+      <p>Keep vanilla, Fabric, Forge, snapshots, servers, and Soul Client builds completely separate. Each Space has its own version, mods, worlds, and settings.</p>
+    </div>
+  </div>
+  <div class="slide">
+    <div class="bg bg-four"></div><div class="grid"></div>
+    <div class="content">
+      <span class="tag">Open Source</span>
+      <h1>Enjoying Soul Launcher?</h1>
+      <p>Soul Launcher is free and open source. If you like it, a star on GitHub helps the project grow.</p>
+      <a class="btn btn-github" href="https://github.com/unmid/SoulLauncher" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24"><path d="M12 .5l3.09 6.26 6.91 1-5 4.87 1.18 6.88L12 16.27l-6.18 3.24L7 12.63l-5-4.87 6.91-1L12 .5z"/></svg>
+        Give a Star on GitHub
+      </a>
+    </div>
+  </div>
+  <button class="nav prev" aria-label="Previous">&#10094;</button>
+  <button class="nav next" aria-label="Next">&#10095;</button>
+  <div class="dots" id="dots"></div>
+</div>
+<script>
+(function () {
+  const slides = document.querySelectorAll('.slide');
+  const dotsBox = document.getElementById('dots');
+  const slider = document.getElementById('slider');
+  let index = 0, timer = null;
+  const DELAY = 7000;
+  slides.forEach(function (_, i) {
+    const d = document.createElement('button');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.setAttribute('aria-label', 'Show slide ' + (i + 1));
+    d.addEventListener('click', function () { go(i); restart(); });
+    dotsBox.appendChild(d);
+  });
+  const dots = dotsBox.children;
+  function go(i) {
+    slides[index].classList.remove('active');
+    dots[index].classList.remove('active');
+    index = (i + slides.length) % slides.length;
+    slides[index].classList.add('active');
+    dots[index].classList.add('active');
+  }
+  function next() { go(index + 1); }
+  function restart() { clearInterval(timer); timer = setInterval(next, DELAY); }
+  document.querySelector('.nav.next').addEventListener('click', function () { next(); restart(); });
+  document.querySelector('.nav.prev').addEventListener('click', function () { go(index - 1); restart(); });
+  slider.addEventListener('mouseenter', function () { clearInterval(timer); });
+  slider.addEventListener('mouseleave', restart);
+
+  const headEl = document.getElementById('rel-head');
+  const metaEl = document.getElementById('rel-meta');
+  const notesEl = document.getElementById('rel-notes');
+  const btnEl = document.getElementById('btn-update');
+  const btnTxt = document.getElementById('btn-update-text');
+  const wwwEl = document.getElementById('www');
+  const RELEASES_API = 'https://api.github.com/repos/unmid/SoulLauncher/releases/latest?cb=' + Date.now();
+
+  function pickExe(assets) {
+    if (!assets) return '';
+    for (let i = 0; i < assets.length; i++) {
+      const n = assets[i].name || '';
+      if (n.endsWith('.exe') || n.endsWith('.msi')) return assets[i].browser_download_url || '';
+    }
+    return '';
+  }
+  function stripMd(s) {
+    return (s || '').replace(/```[^`]*```/g, ' ').replace(/[#>*_~`[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  metaEl.innerHTML = '<span class="rel-loading"><span class="spin"></span>Checking for a new release…</span>';
+  fetch(RELEASES_API, { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (rel) {
+      const tag = rel.tag_name || 'latest';
+      headEl.textContent = 'Soul ' + tag;
+      const when = rel.published_at ? new Date(rel.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+      const notes = stripMd(rel.body).slice(0, 420);
+      metaEl.innerHTML = '';
+      const pill = document.createElement('span');
+      pill.className = 'rel-pill';
+      pill.textContent = 'Version ' + tag + (when ? ' · ' + when : '');
+      metaEl.appendChild(pill);
+      const url = pickExe(rel.assets) || '';
+      wwwEl.href = rel.html_url || 'https://github.com/unmid/SoulLauncher/releases';
+      if (url) {
+        btnTxt.textContent = 'Update to ' + tag;
+        btnEl.onclick = function () { window.open(url, '_blank'); };
+      } else {
+        btnTxt.textContent = 'See ' + tag + ' on GitHub';
+        btnEl.classList.remove('btn-update');
+        btnEl.classList.add('btn-ghost');
+        btnEl.onclick = function () { window.open(wwwEl.href, '_blank'); };
+      }
+      if (notes) {
+        notesEl.textContent = notes;
+        btnEl.style.marginTop = '10px';
+      }
+    })
+    .catch(function () {
+      headEl.textContent = 'Soul Launcher';
+      metaEl.innerHTML = '';
+      const err = document.createElement('div');
+      err.className = 'rel-error';
+      err.textContent = 'Could not check for updates right now — see the GitHub releases page.';
+      metaEl.appendChild(err);
+      wwwEl.href = 'https://github.com/unmid/SoulLauncher/releases';
+      wwwEl.textContent = 'Open releases page';
+      btnEl.style.display = 'none';
+    });
+  restart();
+})();
+</script>
+</body>
+</html>

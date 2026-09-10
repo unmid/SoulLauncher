@@ -1,6 +1,6 @@
 [package]
-name = "orbit-launcher"
-description = "Orbit Launcher - fast, simple Minecraft launcher"
+name = "soul-launcher"
+description = "Soul Launcher - fast, lightweight Minecraft launcher"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

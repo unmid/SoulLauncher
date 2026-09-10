@@ -2,7 +2,7 @@
 // compile-time env vars. Never fails when the file is absent, so public clones
 // still build (features that need secrets degrade gracefully).
 fn main() {
-    for key in ["ORBIT_UPDATER_TOKEN", "ORBIT_CF_KEY"] {
+    for key in ["SOUL_TOKEN", "SOUL_CF_KEY"] {
         if let Ok(v) = std::env::var(key) {
             println!("cargo:rustc-env={key}={v}");
         }

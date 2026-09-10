@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Orbit Launcher",
-  "version": "1.0.2",
-  "identifier": "com.orbit.launcher",
+  "productName": "Soul Launcher",
+  "version": "1.0.0",
+  "identifier": "com.soul.launcher",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Orbit Launcher",
+        "title": "Soul Launcher",
         "width": 1240,
         "height": 780,
         "minWidth": 940,
@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: https:; media-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src 'self' https: ipc: http://ipc.localhost; font-src 'self' data:; frame-src https://unmid.github.io;"
+      "csp": "default-src 'self'; img-src 'self' data: https:; media-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src 'self' https: ipc: http://ipc.localhost; font-src 'self' data:; frame-src https://unmid.github.io"
     }
   },
   "bundle": {
@@ -35,9 +35,9 @@
     ],
     "createUpdaterArtifacts": true,
     "category": "Game",
-    "shortDescription": "Fast, simple Minecraft launcher",
-    "publisher": "Orbit Launcher Contributors",
-    "copyright": "Copyright © 2026 Orbit Launcher Contributors",
+    "shortDescription": "Fast, lightweight Minecraft launcher",
+    "publisher": "Soul Launcher Contributors",
+    "copyright": "Copyright © 2026 Soul Launcher Contributors",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -49,7 +49,11 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "headerImage": "icons/nsis-header.bmp",
+        "sidebarImage": "icons/nsis-sidebar.bmp"
       }
     }
   },
@@ -57,9 +61,9 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/unmid/OrbitLauncher/releases/latest/download/latest.json"
+        "https://github.com/unmid/SoulLauncher/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERDNDJEMDM0Rjc4QTA2OUMKUldTY0JvcjNOTkJDM05aS3JnUjQwVmVwRmN1VVVPS08yS1NLSlkxRHdkaTc4R2Z6SHNZSzcwbFYK",
+      "pubkey": "dW50cnVzdGVkIGNvbWVudDogbWluaXNpZ24gcHVibGljIGtleTogIENGQjA3RDhGRURGNTJBNDAKUldSQUt2WHRqMzJ3ejlPS1JKaVJsN3lrM1dJSENaT3hpTjBPcHlKTUNMRGJycmM4bjgzamRLTGIK",
       "windows": {
         "installMode": "passive"
       }

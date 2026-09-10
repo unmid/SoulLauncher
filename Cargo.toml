@@ -1,4 +1,4 @@
-# Orbit Launcher — Cargo workspace.
+# Soul Launcher — Cargo workspace.
 # The whole workspace shares a single version, defined here under
 # [workspace.package]. Member crates inherit it with `version.workspace = true`.
 [workspace]
@@ -6,11 +6,11 @@ members = ["src-tauri"]
 resolver = "2"
 
 [workspace.package]
-version = "1.0.2"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.77.2"
 license = "MIT"
-repository = "https://github.com/unmid/OrbitLauncher"
+repository = "https://github.com/unmid/SoulLauncher"
 
 [profile.release]
 opt-level = 3

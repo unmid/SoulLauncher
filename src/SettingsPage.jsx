@@ -93,7 +93,7 @@ function AppearanceTab({ settings, saveSettings }) {
 
       <section className="settings-card">
         <div className="settings-card-title"><IconGear size={16} /> Behavior</div>
-        <Toggle title="Hide launcher while playing" sub="Orbit minimizes when the game starts and comes back when you quit" value={settings.closeOnPlay !== false} onChange={(v) => set({ closeOnPlay: v })} icon={IconGear} />
+        <Toggle title="Hide launcher while playing" sub="Soul minimizes when the game starts and comes back when you quit" value={settings.closeOnPlay !== false} onChange={(v) => set({ closeOnPlay: v })} icon={IconGear} />
       </section>
     </>
   )
@@ -334,7 +334,7 @@ function StorageTab({ notify }) {
         )}
         <div className="security-note">
           <IconShield size={14} />
-          <span>Everything Orbit stores lives on your PC only. Cleaning never touches your worlds, mods, accounts or game files — only caches, temp downloads and logs.</span>
+          <span>Everything Soul stores lives on your PC only. Cleaning never touches your worlds, mods, accounts or game files — only caches, temp downloads and logs.</span>
         </div>
       </section>
     </>
@@ -393,7 +393,7 @@ function UpdatesTab({ notify }) {
             <div className="toggle-sub">{info.error}</div>
             <div className="confirm-actions update-actions">
               <button className="btn btn-primary" onClick={check}>Try again</button>
-              <button className="btn btn-secondary" onClick={() => api.openUrl('https://github.com/unmid/OrbitLauncher/releases')}>
+              <button className="btn btn-secondary" onClick={() => api.openUrl('https://github.com/unmid/SoulLauncher/releases')}>
                 <IconExternal size={14} /> Releases page
               </button>
             </div>
@@ -416,7 +416,7 @@ function UpdatesTab({ notify }) {
                     ? `Downloading update — ${fmtBytes(downloading.done)} / ${fmtBytes(downloading.total)} (${pct}%)`
                     : 'Downloading update…'}
                 </div>
-                <div className="toggle-sub">Orbit closes and the installer opens by itself when the download finishes.</div>
+                <div className="toggle-sub">Soul closes and the installer opens by itself when the download finishes.</div>
               </div>
             ) : info.assetUrl ? (
               <div className="confirm-actions update-actions">
@@ -452,13 +452,13 @@ function UpdatesTab({ notify }) {
 
       <section className="settings-card">
         <div className="settings-card-title">
-          <img src="./icons/logo.png" width="20" height="20" alt="" draggable={false} /> About Orbit Launcher
+          <img src="./icons/logo.png" width="20" height="20" alt="" draggable={false} /> About Soul Launcher
         </div>
-        <div className="toggle-sub">Orbit Launcher v1.0.2 · built for fast, one-click modded Minecraft.</div>
+        <div className="toggle-sub">Soul Launcher v1.0.0 · built for fast, one-click modded Minecraft.</div>
         <div className="fork-note">
           <IconInfo size={14} />
           <span>
-            Orbit Launcher is a <strong>fork of OpenLauncher</strong> — an open-source Minecraft launcher by
+            Soul Launcher is a <strong>fork of OpenLauncher</strong> — an open-source Minecraft launcher by
             CesarGarza55 (CodevBox). The Microsoft sign-in window shows OpenLauncher's name because both launchers
             share its official authentication service.
           </span>
@@ -467,8 +467,8 @@ function UpdatesTab({ notify }) {
           <button className="btn btn-secondary btn-small" onClick={() => api.openUrl('https://github.com/CesarGarza55/OpenLauncher')}>
             <IconGithub size={14} /> Upstream project
           </button>
-          <button className="btn btn-secondary btn-small" onClick={() => api.openUrl('https://github.com/unmid/OrbitLauncher')}>
-            <IconExternal size={14} /> Orbit on GitHub
+          <button className="btn btn-secondary btn-small" onClick={() => api.openUrl('https://github.com/unmid/SoulLauncher')}>
+            <IconExternal size={14} /> Soul on GitHub
           </button>
           <button className="btn btn-secondary btn-small" onClick={() => api.openUrl('https://discord.gg/Z7QfWSPJmJ')}>
             <IconDiscord size={14} /> Discord
@@ -557,7 +557,7 @@ function LogsTab({ notify }) {
         ))}
         <div ref={tailRef} />
       </div>
-      <div className="log-footer"><span className="log-live-dot" /> Live · logs are stored locally in the OrbitLauncher data folder</div>
+      <div className="log-footer"><span className="log-live-dot" /> Live · logs are stored locally in the SoulLauncher data folder</div>
     </section>
   )
 }
@@ -570,8 +570,8 @@ export default function SettingsPage({ settings, saveSettings, notify }) {
   // Other pages can ask for a specific tab ('settings:updates' etc).
   useEffect(() => {
     const onSub = (e) => { if (TABS.some((t) => t.id === e.detail)) setTab(e.detail) }
-    window.addEventListener('orbit-subnav', onSub)
-    return () => window.removeEventListener('orbit-subnav', onSub)
+    window.addEventListener('soul-subnav', onSub)
+    return () => window.removeEventListener('soul-subnav', onSub)
   }, [])
 
   return (
@@ -579,7 +579,7 @@ export default function SettingsPage({ settings, saveSettings, notify }) {
       <div className="content-head">
         <div>
           <h1 className="page-title">Settings</h1>
-          <p className="page-sub">Make Orbit yours — looks, performance, storage and updates in one place.</p>
+          <p className="page-sub">Make Soul yours — looks, performance, storage and updates in one place.</p>
         </div>
       </div>
 

@@ -2346,29 +2346,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
-name = "orbit-launcher"
-version = "1.0.2"
-dependencies = [
- "dirs",
- "futures-util",
- "keyring",
- "md-5",
- "open",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sha1",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-process",
- "tauri-plugin-updater",
- "tokio",
- "uuid",
- "zip 2.4.2",
-]
-
-[[package]]
 name = "osakit"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3464,6 +3441,29 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "soul-launcher"
+version = "1.0.0"
+dependencies = [
+ "dirs",
+ "futures-util",
+ "keyring",
+ "md-5",
+ "open",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha1",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-process",
+ "tauri-plugin-updater",
+ "tokio",
+ "uuid",
+ "zip 2.4.2",
 ]
 
 [[package]]
