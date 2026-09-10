@@ -514,7 +514,8 @@ export default function App() {
       {wizardState && (
         <Suspense fallback={null}>
           <SpaceWizard
-            existing={wizardState === 'new' ? null : wizardState}
+            existing={wizardState === 'new' ? null : (wizardState?.mode === 'new' ? null : wizardState)}
+            initialLoader={wizardState?.loader || null}
             settings={settings}
             onClose={() => setWizardState(null)}
             onSaved={refreshSpaces}

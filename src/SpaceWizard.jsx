@@ -11,14 +11,14 @@ const STEPS = [
   { id: 'name', label: 'Name it' },
 ]
 
-export default function SpaceWizard({ existing = null, settings, onClose, onSaved, onSpaceCreated, notify }) {
+export default function SpaceWizard({ existing = null, initialLoader = null, settings, onClose, onSaved, onSpaceCreated, notify }) {
   const isEdit = !!existing
   const [step, setStep] = useState(0)
   const [versions, setVersions] = useState(null)
   const [versionFilter, setVersionFilter] = useState('')
   const [versionKind, setVersionKind] = useState('release')
   const [mcVersion, setMcVersion] = useState(existing?.mcVersion || '')
-  const [loader, setLoader] = useState(existing?.loader || 'fabric')
+  const [loader, setLoader] = useState(existing?.loader || initialLoader || 'fabric')
   const [loaderVersion, setLoaderVersion] = useState(existing?.loaderVersion || null)
   const [loaderVersions, setLoaderVersions] = useState([])
   const [soulBuilds, setSoulBuilds] = useState([])
@@ -50,6 +50,18 @@ export default function SpaceWizard({ existing = null, settings, onClose, onSave
       .catch((e) => setSoulError(String(e)))
       .finally(() => setSoulLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (existing || initialLoader !== 'soul') return
+    setLoader('soul')
+    setIcon('soul')
+    setColor('#f26a3c')
+  }, [existing, initialLoader])
+
+  useEffect(() => {
+    if (existing || loader !== 'soul' || soulVersion || soulBuilds.length === 0) return
+    chooseSoulBuild(soulBuilds[0].id)
+  }, [existing, loader, soulBuilds, soulVersion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!mcVersion || loader === 'vanilla' || loader === 'soul') { setLoaderVersions([]); setLoaderVersion(null); setLoaderBusy(false); return }

@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, openFileDialog } from './api.js'
 import {
-  IconRocket, IconPlay, IconGlobe, IconShield, IconClock, IconBolt, IconLayers,
-  AppIcon, SpaceIcon, LOADER_META, LoaderMark, IconNews, IconDiscord, IconCheck, IconPlus,
+  IconRocket, IconPlay, IconGlobe, IconClock, IconBolt, IconCheck, IconUpdate,
+  SpaceIcon, LOADER_META, LoaderMark,
 } from './icons.jsx'
 import { progressDetail, stageText } from './App.jsx'
 
-const DISCORD_URL = 'https://discord.gg/Z7QfWSPJmJ'
-const RELEASENOTES_URL = 'https://github.com/unmid/SoulLauncher/releases'
 const WALLPAPERS = ['./wallpapers/w1.png', './wallpapers/w2.png', './wallpapers/w3.png', './wallpapers/w4.png']
 const WALLPAPER_INTERVAL = 32000
 const BUSY_STAGES = ['loader', 'version', 'files', 'java', 'launching']
@@ -154,10 +152,14 @@ export default function HomePage({ settings, spaces, selectedSpace, activeAccoun
     }
   }
 
-  const recent = useMemo(() => spaces
+  const continueList = useMemo(() => spaces
     .slice()
     .sort((a, b) => (b.lastPlayed || b.createdAt || 0) - (a.lastPlayed || a.createdAt || 0))
-    .slice(0, 8), [spaces])
+    .filter((space) => space.id !== selectedSpace?.id)
+    .slice(0, 3), [spaces, selectedSpace?.id])
+  const SoulMark = LoaderMark.soul || LoaderMark.vanilla
+  const SelectedMark = selectedSpace ? (LoaderMark[selectedSpace.loader] || LoaderMark.vanilla) : null
+  const selectedMods = selectedSpace?.mods?.length || 0
 
   const heroProgress = selectedSpace ? progress[selectedSpace.id] : null
   const busy = heroProgress && BUSY_STAGES.includes(heroProgress.stage)
@@ -179,39 +181,84 @@ export default function HomePage({ settings, spaces, selectedSpace, activeAccoun
         </div>
 
         {spaces.length === 0 ? (
-          <section className="hero-card" style={{ maxWidth: 560, margin: '26px auto 0', width: '100%' }}>
+          <section className="hero-card" style={{ maxWidth: 600, margin: '26px auto 0', width: '100%' }}>
             <div className="hero-empty">
               <div className="hero-empty-icon"><IconRocket size={34} /></div>
               <h2>Set up your first Space</h2>
-              <p>Pick a Minecraft version, choose a loader if you want mods, and press Play. It takes about a minute.</p>
+              <p>Pick a Minecraft version, choose Soul Client or another loader, and press Play. It takes about a minute.</p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button className="btn btn-primary btn-big" onClick={() => openWizard('new')}>
                   <IconRocket size={17} /> New Space
                 </button>
-                <button className="btn btn-secondary btn-big" onClick={importModpack} disabled={packBusy}>
-                  {packBusy ? <span className="mini-spinner" /> : <AppIcon name="download" size={17} />} From modpack…
+                <button className="btn btn-secondary btn-big" onClick={() => openWizard({ mode: 'new', loader: 'soul' })}>
+                  <SoulMark size={18} /> Get Soul Client
                 </button>
               </div>
+              <button className="btn btn-ghost btn-small" style={{ marginTop: 12 }} onClick={importModpack} disabled={packBusy}>
+                {packBusy ? <span className="mini-spinner" /> : 'Or install from a modpack file'}
+              </button>
             </div>
           </section>
         ) : (
           <>
-            {recent.length > 0 && (
-              <section>
+            <section className="hero-card home-command rise" style={{ '--space-color': selectedSpace?.color || 'var(--accent)' }}>
+              <div className="hero-card-glow" />
+              <div className="hero-space-row">
+                <div className="hero-space-icon">
+                  {selectedSpace ? <SpaceIcon name={selectedSpace.icon} size={34} /> : <IconRocket size={30} />}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="hero-space-name">{selectedSpace ? selectedSpace.name : 'Select a game'}</div>
+                  {selectedSpace && (
+                    <div className="hero-space-meta">
+                      <span className="tag tag-loader">
+                        {SelectedMark && <SelectedMark size={13} />}
+                        {LOADER_META[selectedSpace.loader]?.label || selectedSpace.loader}{selectedSpace.loaderVersion ? ' ' + selectedSpace.loaderVersion : ''}
+                      </span>
+                      <span className="tag">{selectedSpace.mcVersion}</span>
+                      {selectedMods > 0 && <span className="tag">{selectedMods} mod{selectedMods > 1 ? 's' : ''}</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {heroProgress && (busy || started) ? (
+                <div className="hero-progress" role="status" aria-live="polite" style={{ marginTop: 18 }}>
+                  <div className="hero-progress-row">
+                    <span>{stageText(heroProgress)}</span>
+                    {pct != null && <span className="hero-progress-pct">{pct}%</span>}
+                  </div>
+                  <div className="hero-progress-bar">
+                    <div className="hero-progress-fill" style={started ? { width: '100%' } : (pct != null ? { width: pct + '%' } : undefined)} data-ind={started || pct != null ? '0' : '1'} />
+                  </div>
+                  <div className="hero-progress-sub">{progressDetail(heroProgress)}</div>
+                </div>
+              ) : (
+                <p className="home-command-sub">This is the Space on the Play button below. Switch Spaces, manage this one, or start something new.</p>
+              )}
+              <div className="home-command-actions">
+                <button className="btn btn-secondary btn-small" disabled={!selectedSpace} onClick={() => selectedSpace && openWizard(selectedSpace)}>Manage Space</button>
+                <button className="btn btn-ghost btn-small" onClick={() => openWizard('new')}>New Space</button>
+                <button className="btn btn-ghost btn-small" onClick={() => openWizard({ mode: 'new', loader: 'soul' })}>Soul Client</button>
+              </div>
+            </section>
+
+            {continueList.length > 0 && (
+              <section style={{ marginTop: 18 }}>
                 <h2 className="home-section-title">
-                  <IconClock size={15} /> Jump back in
-                  {spaces.length > 8 && (
+                  <IconClock size={15} /> Continue
+                  {spaces.length > 4 && (
                     <button className="home-section-link" onClick={() => navigate('library')}>All Spaces →</button>
                   )}
                 </h2>
                 <div className="recent-grid">
-                  {recent.map((space) => {
+                  {continueList.map((space, index) => {
                     const tileBusy = progress[space.id] && BUSY_STAGES.includes(progress[space.id].stage)
                     const Mark = LoaderMark[space.loader] || LoaderMark.vanilla
                     return (
                       <div
                         key={space.id}
-                        className={`recent-tile ${selectedSpace?.id === space.id ? 'active' : ''}`}
+                        className="recent-tile rise"
+                        style={{ '--i': index }}
                         onClick={() => selectSpace(space.id)}
                         role="button"
                         tabIndex={0}
@@ -240,44 +287,26 @@ export default function HomePage({ settings, spaces, selectedSpace, activeAccoun
             )}
 
             <section style={{ marginTop: 18 }}>
-              <h2 className="home-section-title"><IconBolt size={15} /> Quick actions</h2>
+              <h2 className="home-section-title"><IconBolt size={15} /> Next steps</h2>
               <div className="quick-grid">
-                <button className="quick-tile" onClick={() => openWizard('new')}>
+                <button className="quick-tile rise" style={{ '--i': 0 }} onClick={() => openWizard('new')}>
                   <span className="quick-tile-ic"><IconRocket size={16} /></span>
-                  New Space
+                  <span><span className="quick-tile-label">New Space</span><span className="quick-tile-sub">Version, loader, content</span></span>
                 </button>
-                <button className="quick-tile" onClick={importModpack} disabled={packBusy}>
-                  <span className="quick-tile-ic"><AppIcon name="download" size={16} active={packBusy} /></span>
-                  Install modpack
+                <button className="quick-tile rise" style={{ '--i': 1 }} onClick={() => openWizard({ mode: 'new', loader: 'soul' })}>
+                  <span className="quick-tile-ic"><SoulMark size={17} /></span>
+                  <span><span className="quick-tile-label">Soul Client</span><span className="quick-tile-sub">Tuned FPS build</span></span>
                 </button>
-                <button className="quick-tile" onClick={() => navigate('servers')}>
+                <button className="quick-tile rise" style={{ '--i': 2 }} onClick={() => navigate('servers')}>
                   <span className="quick-tile-ic"><IconGlobe size={15} /></span>
-                  Browse servers
+                  <span><span className="quick-tile-label">Browse servers</span><span className="quick-tile-sub">Live status + copy IP</span></span>
                 </button>
-                <button className="quick-tile" onClick={() => navigate('settings')}>
-                  <span className="quick-tile-ic"><AppIcon name="tune" size={16} /></span>
-                  Customize Soul
-                </button>
-                <button className="quick-tile" onClick={() => api.openUrl(DISCORD_URL)} title="Community, support and sneak peeks">
-                  <span className="quick-tile-ic"><IconDiscord size={15} /></span>
-                  Discord
-                </button>
-                <button className="quick-tile" onClick={() => api.openUrl(RELEASENOTES_URL)} title="What's new in Soul Launcher">
-                  <span className="quick-tile-ic"><IconNews size={15} /></span>
-                  Changelog
-                </button>
-              </div>
-              <div style={{ marginTop: 12 }}>
-                <span className="home-privacy">
-                  <IconShield size={13} />
-                  Everything stays on this PC — no tracking, no accounts with us.
-                </span>
               </div>
             </section>
 
             {update && (
               <div className="update-banner" role="status" style={{ marginTop: 18 }}>
-                <AppIcon name="update-available" size={18} />
+                <IconUpdate size={18} />
                 <span>Soul v{update.latest} is out — you're on v{update.current}</span>
                 <button className="btn btn-primary btn-small" onClick={() => navigate('settings:updates')}>
                   Review update
