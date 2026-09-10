@@ -100,18 +100,32 @@ export default function SpaceWizard({ existing = null, initialLoader = null, set
     if (build?.mcVersion) setMcVersion(build.mcVersion)
   }
 
+  const kindOf = (v) => String(v.kind || v.type || '').toLowerCase().replace(/-/g, '_')
+  const kindIn = (v, kinds) => kinds.includes(kindOf(v))
+  const kindCounts = useMemo(() => {
+    const counts = { release: 0, snapshot: 0, classic: 0, all: 0 }
+    for (const v of versions || []) {
+      counts.all += 1
+      if (kindIn(v, ['release'])) counts.release += 1
+      else if (kindIn(v, ['snapshot'])) counts.snapshot += 1
+      else if (kindIn(v, ['old_beta', 'old_alpha'])) counts.classic += 1
+    }
+    return counts
+  }, [versions])
+
   const filteredVersions = useMemo(() => {
     if (!versions) return []
     const q = versionFilter.trim().toLowerCase()
     let list = q ? versions.filter((v) => v.id.toLowerCase().includes(q)) : versions
     if (versionKind === 'classic') {
-      list = list.filter((v) => v.kind === 'old_beta' || v.kind === 'old_alpha')
+      list = list.filter((v) => kindIn(v, ['old_beta', 'old_alpha']))
     } else if (versionKind !== 'all') {
-      list = list.filter((v) => v.kind === versionKind)
+      list = list.filter((v) => kindIn(v, [versionKind]))
     }
     // already-downloaded versions float to the top
     return list.slice().sort((a, b) => Number(installed.has(b.id)) - Number(installed.has(a.id)))
   }, [versions, versionFilter, versionKind, installed])
+  const filterEmpty = !!versions && versions.length > 0 && filteredVersions.length === 0
 
   const canNext =
     step === 0 ? !!mcVersion :
@@ -243,10 +257,10 @@ export default function SpaceWizard({ existing = null, initialLoader = null, set
                   value={versionKind}
                   onChange={setVersionKind}
                   options={[
-                    { value: 'release', label: 'Releases' },
-                    { value: 'snapshot', label: 'Snapshots' },
-                    { value: 'classic', label: 'Classic' },
-                    { value: 'all', label: 'Everything' },
+                    { value: 'release', label: `Releases (${kindCounts.release})` },
+                    { value: 'snapshot', label: `Snapshots (${kindCounts.snapshot})` },
+                    { value: 'classic', label: `Classic (${kindCounts.classic})` },
+                    { value: 'all', label: `Everything (${kindCounts.all})` },
                   ]}
                 />
               </div>
@@ -264,17 +278,37 @@ export default function SpaceWizard({ existing = null, initialLoader = null, set
                     >
                       <span className="version-row-id">{v.id}</span>
                       {installed.has(v.id) && <span className="installed-badge"><IconDownload size={10} /> installed</span>}
-                      {v.kind !== 'release' && (
-                        <span className={`version-chip-kind ${v.kind === 'release' ? 'kind-release' : 'kind-snapshot'}`}>
-                          {v.kind === 'snapshot' ? 'snapshot' : v.kind.startsWith('old') ? 'classic' : v.kind}
+                      {kindOf(v) !== 'release' && (
+                        <span className={`version-chip-kind ${kindOf(v) === 'release' ? 'kind-release' : 'kind-snapshot'}`}>
+                          {kindOf(v) === 'snapshot' ? 'snapshot' : kindOf(v).startsWith('old') ? 'classic' : (kindOf(v) || 'other')}
                         </span>
                       )}
                       {mcVersion === v.id && <span className="version-row-check"><IconCheck size={15} /></span>}
                     </button>
                   ))}
                   {filteredVersions.length === 0 && (
-                    <div className="wizard-none">No versions match — try a different search.</div>
+                    <div className="wizard-none">
+                      {filterEmpty
+                        ? 'That category came back empty — the list below shows everything instead. Pick any version, or try a different search.'
+                        : 'No versions match — try a different search.'}
+                    </div>
                   )}
+                  {filterEmpty && versions.filter((v) => !filteredVersions.includes(v)).slice(0, 30).map((v) => (
+                    <button
+                      key={v.id + kindOf(v)}
+                      className={`version-row ${mcVersion === v.id ? 'selected' : ''}`}
+                      onClick={() => setMcVersion(v.id)}
+                    >
+                      <span className="version-row-id">{v.id}</span>
+                      {installed.has(v.id) && <span className="installed-badge"><IconDownload size={10} /> installed</span>}
+                      {kindOf(v) && kindOf(v) !== 'release' && (
+                        <span className={`version-chip-kind ${kindOf(v) === 'release' ? 'kind-release' : 'kind-snapshot'}`}>
+                          {kindOf(v) === 'snapshot' ? 'snapshot' : kindOf(v).startsWith('old') ? 'classic' : kindOf(v)}
+                        </span>
+                      )}
+                      {mcVersion === v.id && <span className="version-row-check"><IconCheck size={15} /></span>}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>

@@ -442,7 +442,7 @@ export default function App() {
               onClick={() => navigate(item.id)}
               title={item.label}
             >
-              <span className="nav-ic"><AppIcon name={item.icon} size={19} /></span>
+              <span className="nav-ic"><AppIcon name={item.icon} size={21} /></span>
               <span>{item.label}</span>
             </button>
           ))}
