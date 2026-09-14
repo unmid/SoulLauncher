@@ -3448,6 +3448,7 @@ name = "soul-launcher"
 version = "1.0.0"
 dependencies = [
  "dirs",
+ "flate2",
  "futures-util",
  "keyring",
  "md-5",

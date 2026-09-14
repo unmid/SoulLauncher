@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as skinview3d from 'skinview3d'
 import { api, avatarUrl, openFileDialog } from './api.js'
-import { IconMicrosoft, IconUser, IconPlus, IconCheck, IconX, IconKey, IconWarn, IconInfo, IconCape, IconRefresh, AppIcon } from './icons.jsx'
+import { IconMicrosoft, IconUser, IconPlus, IconCheck, IconX, IconKey, IconWarn, IconInfo, IconCape, IconRefresh, IconUpload, IconTrash } from './icons.jsx'
 
 /**
  * Renders the cape FRONT side only, cropped straight from the real texture
@@ -211,7 +211,7 @@ function ProfileSection({ activeAccount, notify }) {
                   {loading ? <span className="mini-spinner" /> : <IconRefresh size={14} />}
                 </button>
                 <button className="btn btn-primary btn-small" onClick={upload} disabled={busy}>
-                  <AppIcon name="upload" size={15} active={busy} /> Upload skin
+                  <IconUpload size={16} active={busy} /> Upload skin
                 </button>
               </div>
             </div>
@@ -268,8 +268,8 @@ function ProfileSection({ activeAccount, notify }) {
             <div className="cape-grid">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="cape-card">
-                  <div className="skeleton" style={{ width: 58, height: 92, borderRadius: 8 }} />
-                  <div className="skeleton skeleton-line" style={{ width: '60%' }} />
+                  <div className="skeleton" style={{ width: '100%', maxWidth: 78, aspectRatio: '10 / 16', margin: '0 auto', borderRadius: 10 }} />
+                  <div className="skeleton skeleton-line" style={{ width: '60%', marginLeft: 'auto', marginRight: 'auto' }} />
                 </div>
               ))}
             </div>
@@ -371,7 +371,7 @@ export default function AccountPage({ accounts, settings, activeAccount, refresh
                   <button className="btn btn-primary btn-small" onClick={() => switchTo(a.id)}>Use</button>
                 )}
                 <button className="btn btn-danger btn-small" onClick={() => setRemoving(a)} title="Remove account">
-                  <AppIcon name="trash" size={14} />
+                  <IconTrash size={15} />
                 </button>
               </div>
             </div>

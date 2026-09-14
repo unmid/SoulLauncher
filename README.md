@@ -1,10 +1,20 @@
 # Soul Launcher
 
+[![Release](https://img.shields.io/github/v/release/unmid/SoulLauncher?include_prereleases)](https://github.com/unmid/SoulLauncher/releases)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Windows](https://img.shields.io/badge/platform-Windows-0078D6)](https://github.com/unmid/SoulLauncher/releases)
+
 Soul Launcher is a fast, lightweight Minecraft launcher for Windows. It keeps every Minecraft setup in an isolated **Space**: one Minecraft version, one loader or client build, its own mods, resource packs, shaders, datapacks, worlds, and settings.
+
+> **Beta (v1.0.0-beta).** It runs well day to day, but you will find rough edges. Bug reports with logs and steps are genuinely useful — see [Beta and feedback](#beta-and-feedback).
 
 The launcher itself is built with Tauri 2, React 19, Rust, and Vite. On an ordinary gaming PC it normally sits at roughly **125 MB of RAM while idle**. That number moves with your library size, background music, wallpapers, and open dialogs, but the design goal is simple: the launcher should disappear into the background and leave your memory for Minecraft.
 
 The other half of the project is **Soul Client**, currently at version **26.2**: a tuned Fabric FPS build made from public, inspectable mods. Install it from inside Soul Launcher in one click.
+
+## Where it comes from
+
+Soul Launcher is a fork of [OpenLauncher](https://github.com/openlauncherteam/openlauncher). The fork keeps OpenLauncher's official Microsoft sign-in service — which is why the login window says "OpenLauncher", and why your credentials only ever go to Microsoft — and rebuilds nearly everything else: isolated Spaces, automatic category sync, the Soul Client build system, content browsing with version honesty, and a new interface. If you used Orbit Launcher, your data folder migrates on first start instead of forcing a redownload.
 
 ## Why this launcher exists
 
@@ -204,15 +214,11 @@ Soul Launcher searches both Modrinth and CurseForge for:
 
 The important behavior is version honesty. If you ask for Minecraft 26.2, the launcher tries to install the newest file that actually supports Minecraft 26.2. It does not quietly substitute an incompatible latest file. When nothing compatible exists, it says so instead.
 
-Clicking a project opens a project popup rather than navigating the launcher window away:
+Results are plain rows with honest buttons: **Add** installs, **Remove** uninstalls — the button always says which, and picked rows carry an "In your Space" flag, so there is no icon-guessing. A refresh button reinstalls the newest compatible file.
 
-- A **Back** button always returns to the same result list.
-- A Modrinth project shows its live project page inside the popup.
-- CurseForge blocks embedded pages, so CurseForge projects use a complete built-in details view.
-- An external-page button opens the real Modrinth or CurseForge page in your browser.
-- The frameless window controls remain visible above the popup.
+Long result lists use numbered pages with **Prev / Next** buttons rendered both above and below the list, so you never scroll to the bottom to keep browsing. Pages replace results instead of appending forever.
 
-The popup design assumes failure: if the hosted project page cannot load, the launcher falls back to its native description, versions, loaders, categories, and install buttons.
+The browser assumes failure: searches that fail show the error with a retry button and keep whatever was already visible. Offline, the New Space wizard still works from cached versions, typed versions, and latest-loader fallbacks instead of stranding you on an empty list.
 
 ## Single repository for app and live data
 
@@ -230,11 +236,12 @@ client/
 ```
 
 - `serverlist.json` feeds the Servers page and its offline cache.
-- `home/index.html` supplies the animated Servers-page backdrop and live release information.
-- `modpage.html` renders Modrinth project pages for the in-app popup.
+- `home/index.html` hosts extra pages the launcher can display.
+- `modpage.html` is a standalone Modrinth viewer kept for reference.
 - `client/` contains every published Soul Client build.
+- `docs/` is the official website (served by GitHub Pages) in the same visual theme as the app.
 
-The GitHub Pages site serves the same files, so the launcher can display them without duplicating content in another repository.
+The GitHub Pages site serves the same files, so the launcher and the website never duplicate content in another repository.
 
 ### serverlist.json
 
@@ -299,6 +306,18 @@ Logs live under:
 
 Microsoft refresh tokens migrate from the old Windows Credential Manager service to the new Soul service. Old entries are removed after a successful migration.
 
+## Categories and automatic sync
+
+A **Category** is a group of Spaces that play together. Put your 1.21.1 Fabric Space and your 1.21.1 Forge Space in one category, add a server in-game on either one, and the other one has it too — no export, no copy-paste, no settings screen in the launcher. There is deliberately no manual "manage servers" UI: the game files themselves are the source of truth, and the launcher just keeps them pointed at the same place.
+
+How it works, concretely:
+
+- Each category owns one shared folder: `categories/<id>/shared/` holding a single `servers.dat` and a single `options.txt`.
+- When a Space joins a category, its current files seed the shared folder if it is empty, then the Space's own `servers.dat` and `options.txt` are replaced with **OS symlinks** to the shared copies. Every member literally opens the same file, so an in-game change is instantly true for the whole group.
+- Windows without symlink permission (no Developer Mode / admin) falls back to atomic copy-on-launch plus validated copy-back-on-exit: same result, one launch behind instead of instant.
+- `servers.dat` is parsed as real gzipped NBT (`src-tauri/src/servers_dat.rs`), not copied blindly: corrupt writes are rejected before they can poison a whole category, and unknown per-server fields (icons, flags modpacks add) survive a rewrite.
+- Leaving or deleting a category materializes symlinks back into standalone copies first, so nobody ever loses settings by ungrouping.
+
 ## Performance and resource use
 
 Soul Launcher is intentionally boring in Task Manager:
@@ -334,13 +353,15 @@ The Microsoft authentication window may display **OpenLauncher**. That is expect
 
 ## Download
 
-Get `Soul Launcher_1.0.0_x64-setup.exe` from:
-
-```text
-https://github.com/unmid/SoulLauncher/releases/latest
-```
+Get `SoulLauncher-Setup.exe` from the [v1.0.0-beta release page](https://github.com/unmid/SoulLauncher/releases/tag/v1.0.0-beta), or browse [all releases](https://github.com/unmid/SoulLauncher/releases).
 
 After the first install, Soul Launcher updates itself automatically. You do not need to download future installers manually.
+
+### Windows SmartScreen on the beta
+
+Windows will very likely greet the installer with "Windows protected your PC" and an unknown-publisher warning. That is SmartScreen doing its job, not a diagnosis: the beta is not code-signed with a paid certificate yet, so Windows has no reputation to check against. The installer is built in the open — [the release workflow](.github/workflows/release.yml) compiles it straight from the source in this repository, and you can verify that yourself by building from source below.
+
+To install anyway: click **More info**, then **Run anyway**. If that bothers you (fair enough), skip the download and build it yourself — same bytes, your machine, nobody to trust. If actual Windows Defender (not SmartScreen) flags the file, please file an issue with the exact message and your Windows version.
 
 ## Building from source
 
@@ -385,6 +406,8 @@ Windows releases are produced from `v*` tags by `.github/workflows/release.yml`.
 
 Installed copies verify update signatures before installing anything. The signing public key is embedded in the app. Keep the private key out of git; it belongs in GitHub Actions secrets and local build secrets only.
 
+Automated releases need a `TAURI_SIGNING_PRIVATE_KEY` repository secret (plus `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if your key has one). Without it, the release workflow fails at the signing step — beta installers can still be attached to a release by hand in the meantime.
+
 ## Project structure
 
 ```text
@@ -393,11 +416,41 @@ package.json          # React 19 + Vite frontend
 src/                  # pages, components, icons, styles
 public/               # fonts, icons, logo, wallpapers, music
 src-tauri/            # Rust backend: install, launch, accounts, content
-serverlist.json       # live server list
-home/                 # hosted home/news page
-modpage.html          # hosted Modrinth project viewer
+serverlist.json       # live server list for the Servers page
+docs/                 # official website (GitHub Pages)
+home/                 # extra hosted pages
+modpage.html          # standalone Modrinth viewer (reference)
 client/               # published Soul Client builds
 ```
+
+## How the code fits together
+
+If you want to learn from (or hack on) this codebase, here is the honest map. Backend first — every item is a Tauri command or the module behind one:
+
+- **`main.rs`** is the command registry and not much else: settings, spaces CRUD, categories, content, accounts, storage, updates, launching. Start here to see what the frontend is allowed to ask for.
+- **`launch.rs` (`prepare_and_launch`)** is the heart of the app: resolve loader → fetch Mojang version data → download client, libraries, natives, assets in parallel → ensure Java → apply category sync last → spawn the game. Progress is throttled to ~150 ms so the UI stays smooth.
+- **`categories.rs`** owns group sync: `ensure_category_links` (symlink or copy fallback), `push_shared_into_space` before launch, `pull_space_into_shared` after exit, `seed_shared_from_space` for first join, `detach_space` for clean leaving.
+- **`servers_dat.rs`** is the real NBT layer: generic tag reader/writer, gzip handling, `read/write_servers_dat` with validation and unknown-field preservation, `read/write_options_txt`, and the `link_or_copy` / `is_linked_to` symlink helpers.
+- **`loaders.rs`** installs Fabric, Quilt, Forge, NeoForge, and OptiFine (including driving the official OptiFine installer with Java when needed).
+- **`mojang.rs`** talks to Mojang's APIs: version manifest, inheritance resolution, libraries, assets, launch arguments.
+- **`download.rs`** downloads with per-chunk stall timeouts and retries, so a dead connection fails loudly instead of hanging on "Getting ready" forever.
+- **`content.rs`** searches and installs from Modrinth and CurseForge with version honesty: newest file that supports your exact version or a clear error. CurseForge needs an API key, so it compiles to empty without `SOUL_CF_KEY` and degrades instead of breaking the build.
+- **`modpack.rs`** turns `.mrpack` / CurseForge zips into install plans, rejects unsafe paths, and sniffs local `.jar` / `.zip` kinds.
+- **`soulclient.rs`** installs the repo's own client builds from `client/versions.json`.
+- **`accounts.rs`** handles offline UUIDs, Microsoft login/refresh, and Windows Credential Manager storage with migration from Orbit's entries.
+- **`servers.rs`** is the Server List Ping implementation (handshake, status, latency) plus strict parsing of this repo's `serverlist.json`.
+- **`hardware.rs` / `jruntime.rs` / `storage.rs` / `profile.rs` / `remote.rs` / `update.rs` / `store.rs` / `spaces.rs`** cover optimization presets, Java runtimes, junk cleanup, skins/capes, fetching, the updater, settings, and Space/category persistence respectively.
+
+Frontend (`src/`), same idea:
+
+- **`App.jsx`** is the shell: side nav, frameless title bar, theme/music/launch state, toasts, auto-updater, desktop-shortcut `--space` launches.
+- **`HomePage.jsx`** is intentionally almost empty: wallpaper plus the launch dock (Space picker + Play).
+- **`LibraryPage.jsx`** is Spaces plus drag-and-drop categories. **`SpaceCard.jsx`** is one Space: play, progress, and the options menu.
+- **`SpaceWizard.jsx`** is the 4-step New/Edit popup, built to survive offline (cached versions, manual typing, latest-loader fallback).
+- **`ModsBrowser.jsx`** is content search with real pagination (Prev/Next, top and bottom) and unambiguous Add/Remove buttons.
+- **`ServersPage.jsx`** pings the repo's server list live, with cache-then-popular-servers fallbacks.
+- **`AccountPage.jsx`** covers accounts, 3D skin preview, uploads, and cape cards. **`SettingsPage.jsx`** covers appearance, performance, storage, updates, logs.
+- **`api.js`** is the single Tauri bridge with web-preview fallbacks, so `npm run dev` renders without the backend. **`Dropdown.jsx`** is a portal menu that positions against the viewport and never gets clipped. **`icons.jsx`** wires Lucide for app icons and keeps loader logos and block art as images. **`styles.css`** is the whole design system: soft-black dark theme, a real light theme, pill shapes, and transform-only motion.
 
 ## Troubleshooting
 
@@ -417,14 +470,29 @@ The installer reports skipped mods rather than failing silently.
 
 Soul Launcher saves the last good server list. If the live list cannot be reached, it shows the cached list and marks the page offline. Individual failed pings have a retry button. Refresh rechecks both the list and every visible server.
 
-### A mod page will not load in the popup
+### Content search fails or shows nothing
 
-The popup automatically uses its built-in details view when the hosted Modrinth page cannot load. Use the external-page button for the complete site.
+The browser shows the error inline with a retry button and keeps old results on screen. Check your connection, try **All versions** (some projects never tag snapshots), or add a local `.jar` / `.zip` with **Add file** instead.
 
 ### Music or wallpapers are distracting
 
 Disable them under **Settings > Appearance**. Disabling animations makes navigation nearly instant and reduces visual noise.
 
+## Beta and feedback
+
+This is a beta: expect bugs, and please report them instead of working around them in silence. A useful report has four things:
+
+1. The launcher version (Settings shows it, or name the release tag).
+2. What you clicked and what you expected.
+3. The exact error text, if any.
+4. The tail of `%APPDATA%\SoulLauncher\logs\soul.log` (Settings > Logs shows it in-app).
+
+File it at [github.com/unmid/SoulLauncher/issues](https://github.com/unmid/SoulLauncher/issues). Crash? Tell us whether the window closed, froze, or showed a toast — those are three different bugs with three different fixes.
+
+## Website
+
+The official page lives in [`docs/`](docs/) in this repository and is published with GitHub Pages: same dark slate and teal theme as the app, download button, feature tour, and a live preview of `serverlist.json`. To enable it on a fork: repository Settings > Pages > Deploy from branch > `main` + `/docs`.
+
 ## License
 
-MIT. See `LICENSE`.
+GPL-3.0-only. See `LICENSE`.

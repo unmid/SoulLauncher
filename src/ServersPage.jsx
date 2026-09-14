@@ -7,9 +7,15 @@ function pingKey(server) {
 }
 const serverAddress = (s) => s.ip + ((s.port && s.port !== 25565) ? `:${s.port}` : '')
 const SERVERS_CACHE_KEY = 'soul.servers.v1'
-// The Soul news page doubles as a live, animated backdrop for this screen.
-// Offline or unreachable? The wallpaper slides in instead, so it's never blank.
-const BACKDROP_URL = 'https://unmid.github.io/SoulLauncher/home/index.html'
+// Built-in fallback: famous servers shown when the GitHub list is
+// unreachable AND nothing is cached. Never an empty page, never a 404.
+const FALLBACK_SERVERS = [
+  { name: 'Hypixel', ip: 'mc.hypixel.net', port: 25565, icon: '', motd: 'Minigames, SkyBlock, Bed Wars', category: 'Popular', sponsored: false, minVersion: '' },
+  { name: 'CubeCraft', ip: 'play.cubecraft.net', port: 25565, icon: '', motd: 'EggWars, SkyWars, Survival Games', category: 'Popular', sponsored: false, minVersion: '' },
+  { name: 'Minehut', ip: 'mc.minehut.com', port: 25565, icon: '', motd: 'Free servers, thousands of player worlds', category: 'Popular', sponsored: false, minVersion: '' },
+  { name: 'GommeHD', ip: 'gommehd.net', port: 25565, icon: '', motd: 'BedWars, SkyWars, CityBuild', category: 'Popular', sponsored: false, minVersion: '' },
+  { name: '2b2t', ip: 'connect.2b2t.org', port: 25565, icon: '', motd: 'The oldest anarchy server in Minecraft', category: 'Anarchy', sponsored: false, minVersion: '' },
+]
 
 function splitServerAddress(server) {
   const fallbackPort = server.port || 25565
@@ -51,26 +57,12 @@ function readCache() {
   } catch { return [] }
 }
 
-function ServersBackdrop({ enabled }) {
-  const [failed, setFailed] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  useEffect(() => {
-    if (!enabled || failed || loaded) return undefined
-    // An unreachable Pages site must not leave a transparent hole behind.
-    const timer = setTimeout(() => setFailed(true), 8000)
-    return () => clearTimeout(timer)
-  }, [enabled, failed, loaded])
-  if (!enabled || failed) {
-    return (
-      <div className="servers-bg" aria-hidden="true">
-        <div className="servers-bg-fallback" style={{ backgroundImage: 'url(./wallpapers/w2.png)' }} />
-        <div className="servers-bg-scrim" />
-      </div>
-    )
-  }
+// Static wallpaper backdrop only — the remote iframe is gone, so a dead
+// GitHub page can never show a 404 inside the app.
+function ServersBackdrop() {
   return (
     <div className="servers-bg" aria-hidden="true">
-      <iframe src={BACKDROP_URL} title="" tabIndex={-1} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
+      <div className="servers-bg-fallback" style={{ backgroundImage: 'url(./wallpapers/w2.png)' }} />
       <div className="servers-bg-scrim" />
     </div>
   )
@@ -117,35 +109,42 @@ export default function ServersPage({ notify }) {
     pingOne(server, runId)
   }, [pingOne])
 
+  const [usingFallback, setUsingFallback] = useState(false)
+
   const load = useCallback(async () => {
     pingRunRef.current += 1 // invalidate pings already in flight
     setServers(null)
     setPings({})
+    setUsingFallback(false)
     let list = null
     try {
       list = await api.getServerList()
     } catch { list = null }
     const cached = readCache()
-    if (!navigator.onLine) {
-      // Offline: show the last saved copy so the page stays useful offline.
+    const fresh = uniqueServers(list || [])
+    if (fresh.length) {
+      // Online with a live list: use it and refresh the offline cache.
+      setOnline(true)
+      setOffline(false)
+      setServers(fresh)
+      pingAll(fresh)
+      try { localStorage.setItem(SERVERS_CACHE_KEY, JSON.stringify(fresh)) } catch {}
+      return
+    }
+    if (cached.length) {
+      // List unreachable: fall back to the last saved copy.
+      setOnline(navigator.onLine)
       setOffline(true)
-      setOnline(false)
       setServers(uniqueServers(cached))
       return
     }
-    setOnline(true)
-    setOffline(false)
-    const fresh = uniqueServers(list || [])
-    setServers(fresh)
-    if (fresh.length) {
-      pingAll(fresh)
-      try { localStorage.setItem(SERVERS_CACHE_KEY, JSON.stringify(fresh)) } catch {}
-    } else if (cached.length) {
-      // The fetch failed silently (Tauri returns [] on network errors) —
-      // fall back to the saved list instead of an empty page.
-      setServers(uniqueServers(cached))
-      setOffline(true)
-    }
+    // Nothing cached either: built-in popular servers, still pinged live.
+    const pop = uniqueServers(FALLBACK_SERVERS)
+    setOnline(navigator.onLine)
+    setOffline(true)
+    setUsingFallback(true)
+    setServers(pop)
+    pingAll(pop)
   }, [pingAll])
 
   useEffect(() => { load() }, [load])
@@ -212,7 +211,7 @@ export default function ServersPage({ notify }) {
 
   return (
     <div className="page-full">
-      <ServersBackdrop enabled={navigator.onLine} />
+      <ServersBackdrop />
       <div className="page-inner servers-content">
         <div className="content-head">
           <div>
@@ -242,7 +241,14 @@ export default function ServersPage({ notify }) {
           </div>
         )}
 
-        {servers !== null && offline && servers.length > 0 && (
+        {servers !== null && usingFallback && servers.length > 0 && (
+          <div className="offline-note">
+            <IconSignal size={14} />
+            The online list is unreachable — showing popular servers instead. They still ping live.
+          </div>
+        )}
+
+        {servers !== null && !usingFallback && offline && servers.length > 0 && (
           <div className="offline-note">
             <IconSignal size={14} />
             You're offline — showing your saved servers. Copying addresses still works; live pings are paused.

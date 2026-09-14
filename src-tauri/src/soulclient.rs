@@ -381,6 +381,7 @@ pub async fn install(
         created_at: spaces::now_secs(),
         last_played: None,
         ram_gb: Some(4),
+        category_id: None,
         shortcut: None,
     };
     let _ = std::fs::create_dir_all(spaces::space_dir(&root, &space.id));

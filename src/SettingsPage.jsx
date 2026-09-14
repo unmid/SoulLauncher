@@ -3,12 +3,12 @@ import { api, fmtBytes } from './api.js'
 import {
   IconBrush, IconMusic, IconSparkle, IconLayers, IconGear, IconTrash, IconDisk, IconShield,
   IconSun, IconMoon, IconBolt, IconCpu, IconGpu, IconRam, IconCheck, IconUpdate, IconExternal,
-  IconInfo, IconGithub, IconDiscord, IconRefresh, IconSearch, AppIcon,
+  IconInfo, IconGithub, IconDiscord, IconRefresh, IconSearch, IconDownload,
 } from './icons.jsx'
 
 const ACCENTS = [
-  ['#f26a3c', 'Ember'], ['#3ea1d9', 'Sky'], ['#eeb64d', 'Honey'], ['#ef8fa5', 'Rose'],
-  ['#71b06c', 'Leaf'], ['#8d7ae0', 'Iris'], ['#e0503a', 'Crimson'], ['#4fc4b5', 'Lagoon'],
+  ['#5eead4', 'Engine'], ['#38bdf8', 'Sky'], ['#fbbf24', 'Honey'], ['#fb7185', 'Rose'],
+  ['#34d399', 'Leaf'], ['#a78bfa', 'Iris'], ['#f87171', 'Crimson'], ['#2dd4bf', 'Lagoon'],
 ]
 
 const TABS = [
@@ -16,7 +16,7 @@ const TABS = [
   { id: 'performance', label: 'Performance', icon: IconBolt },
   { id: 'storage', label: 'Storage', icon: IconDisk },
   { id: 'updates', label: 'Updates', icon: IconUpdate },
-  { id: 'logs', label: 'Logs', icon: AppIcon },
+  { id: 'logs', label: 'Logs', icon: IconCpu },
 ]
 
 function Toggle({ title, sub, value, onChange, icon: Icon }) {
@@ -112,7 +112,7 @@ const PRESETS = [
   {
     id: 'performance',
     name: 'Performance',
-    icon: (props) => <AppIcon name="boost" {...props} />,
+    icon: IconBolt,
     desc: 'Max FPS. Aggressive GC tuning, lower render distance, fast graphics in options.txt.',
     tags: ['FPS first', 'Low-end friend', 'Competitive'],
   },
@@ -421,7 +421,7 @@ function UpdatesTab({ notify }) {
             ) : info.assetUrl ? (
               <div className="confirm-actions update-actions">
                 <button className="btn btn-primary" onClick={runUpdate}>
-                  <AppIcon name="download" size={16} /> Update to v{info.latest}
+                  <IconDownload size={17} /> Update to v{info.latest}
                 </button>
               </div>
             ) : (
@@ -547,7 +547,7 @@ function LogsTab({ notify }) {
       </div>
       <div className="terminal" role="log" aria-live="polite">
         {loading && <div className="terminal-empty"><span className="mini-spinner" /> Opening log…</div>}
-        {!loading && visible.length === 0 && <div className="terminal-empty"><AppIcon name="process" size={22} /> No matching log entries.</div>}
+        {!loading && visible.length === 0 && <div className="terminal-empty"><IconCpu size={24} /> No matching log entries.</div>}
         {visible.map((entry) => (
           <div key={entry.id} className={`terminal-line terminal-${entry.level}`}>
             <span className="terminal-time">{timeOf(entry.timestamp)}</span>
@@ -587,7 +587,7 @@ export default function SettingsPage({ settings, saveSettings, notify }) {
         <nav className="settings-tabs">
           {TABS.map((t) => (
             <button key={t.id} className={`settings-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
-              {t.icon === AppIcon ? <AppIcon name="process" size={16} /> : <t.icon size={16} />}
+              <t.icon size={17} />
               {t.label}
             </button>
           ))}

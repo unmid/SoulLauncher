@@ -24,6 +24,8 @@
 /vite-dev.log
 
 /preview.log
+/dist-build.log
+/dev-server.log
 
 # updater signing key (never commit)
 /src-tauri/soul-updater.key

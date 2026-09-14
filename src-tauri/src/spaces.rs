@@ -52,6 +52,10 @@ pub struct Space {
     pub last_played: Option<u64>,
     #[serde(default)]
     pub ram_gb: Option<u32>,
+    /// Shared persistence group: spaces in the same category share their
+    /// game options (options.txt) and in-game server list (servers.dat).
+    #[serde(default)]
+    pub category_id: Option<String>,
     /// Desktop shortcut path when this Space is pinned (kept so unpin can
     /// remove the exact file, even after a rename).
     #[serde(default)]
@@ -74,6 +78,7 @@ impl Space {
             created_at: now_secs(),
             last_played: None,
             ram_gb: None,
+            category_id: None,
             shortcut: None,
         }
     }
@@ -90,12 +95,50 @@ pub fn spaces_path(root: &PathBuf) -> PathBuf {
     root.join("spaces.json")
 }
 
+// ---------------------------------------------------------------------------
+// Categories: groups of Spaces that share one set of game settings
+// (options.txt) and one in-game server list (servers.dat). The first Space
+// that plays while in a category becomes its "seed" — later launches copy
+// the shared files into each member Space before the game starts.
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpaceCategory {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub color: String,
+    #[serde(default)]
+    pub created_at: u64,
+}
+
+pub fn categories_path(root: &PathBuf) -> PathBuf {
+    root.join("categories.json")
+}
+
+pub fn load_categories(root: &PathBuf) -> Vec<SpaceCategory> {
+    crate::store::load_json(&categories_path(root)).unwrap_or_default()
+}
+
+pub fn save_categories(root: &PathBuf, cats: &[SpaceCategory]) -> Result<(), String> {
+    crate::store::save_json(&categories_path(root), &cats.to_vec())
+}
+
 pub fn load_spaces(root: &PathBuf) -> Vec<Space> {
     crate::store::load_json(&spaces_path(root)).unwrap_or_default()
 }
 
 pub fn save_spaces(root: &PathBuf, spaces: &[Space]) -> Result<(), String> {
-    crate::store::save_json(&spaces_path(root), &spaces)
+    crate::store::save_json(&spaces_path(root), &spaces.to_vec())
+}
+
+/// Every member Space of a category (order preserved as stored).
+#[allow(dead_code)]
+pub fn category_members(all: &[Space], category_id: &str) -> Vec<Space> {
+    all.iter()
+        .filter(|s| s.category_id.as_deref() == Some(category_id))
+        .cloned()
+        .collect()
 }
 
 pub fn space_dir(root: &PathBuf, space_id: &str) -> PathBuf {

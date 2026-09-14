@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Soul Launcher — a fast, lightweight Minecraft launcher</title>
+<meta name="description" content="Soul Launcher is a fast, lightweight Minecraft launcher for Windows. Isolated Spaces, automatic category sync, Soul Client FPS builds. Free and open source." />
+<style>
+  @font-face { font-family: 'Baloo 2'; src: url('fonts/baloo2-800-latin.woff2') format('woff2'); font-weight: 800; font-display: swap; }
+  @font-face { font-family: 'Nunito'; src: url('fonts/nunito-600-latin.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+  @font-face { font-family: 'Nunito'; src: url('fonts/nunito-800-latin.woff2') format('woff2'); font-weight: 800; font-display: swap; }
+  :root {
+    --bg: #232A38; --bg-2: #2C3444; --bg-3: #3A4559;
+    --card: #333C4E; --line: rgba(255,255,255,.38); --line-soft: rgba(255,255,255,.2);
+    --accent: #5eead4; --accent-ink: #06231e;
+    --text: #F4F7FB; --muted: #C3CDDD; --faint: #98A3B8;
+    --ease: cubic-bezier(.32,.72,0,1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Nunito', system-ui, sans-serif; font-size: 16px; line-height: 1.65;
+    color: var(--text);
+    background:
+      radial-gradient(90% 40% at 15% 0%, rgba(94,234,212,.08), transparent 60%),
+      radial-gradient(70% 35% at 90% 10%, rgba(129,140,248,.09), transparent 60%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent); color: var(--accent-ink); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 32px); }
+  /* nav */
+  nav { position: sticky; top: 14px; z-index: 50; margin-top: 14px; }
+  .nav-inner {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(44,52,68,.9); backdrop-filter: blur(16px);
+    border: 1px solid var(--line); border-radius: 999px; padding: 9px 10px 9px 20px;
+  }
+  .brand { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 19px; letter-spacing: .2px; text-decoration: none; color: var(--text); display: flex; align-items: center; gap: 10px; }
+  .brand-dot { width: 12px; height: 12px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+  .nav-links { display: flex; gap: 2px; margin-left: auto; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-weight: 800; font-size: 14px; padding: 8px 14px; border-radius: 999px; transition: color .2s var(--ease), background .2s var(--ease); }
+  .nav-links a:hover { color: var(--text); background: rgba(255,255,255,.07); }
+  .nav-cta { background: var(--accent); color: var(--accent-ink) !important; }
+  .nav-toggle { display: none; margin-left: auto; background: none; border: 1px solid var(--line); color: var(--text); border-radius: 999px; width: 40px; height: 40px; font-size: 18px; cursor: pointer; }
+  /* hero */
+  header.hero { text-align: center; padding: clamp(56px, 9vh, 110px) 0 clamp(36px, 5vh, 60px); }
+  .beta-pill { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--accent); background: rgba(94,234,212,.1); border: 1px solid rgba(94,234,212,.4); border-radius: 999px; padding: 6px 16px; }
+  .beta-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .4; } }
+  h1 { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: clamp(40px, 7vw, 76px); line-height: 1.04; letter-spacing: -.5px; margin: 22px 0 0; text-wrap: balance; }
+  h1 .teal { color: var(--accent); }
+  .lede { color: var(--muted); font-size: clamp(16px, 2vw, 19px); max-width: 620px; margin: 18px auto 0; text-wrap: pretty; }
+  .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
+  .btn { display: inline-flex; align-items: center; gap: 9px; padding: 14px 30px; border-radius: 999px; font-weight: 800; font-size: 15px; text-decoration: none; border: 1px solid var(--line); transition: transform .2s var(--ease), filter .2s var(--ease), border-color .2s; cursor: pointer; }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--accent); border-color: transparent; color: var(--accent-ink); }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-ghost { color: var(--text); background: rgba(255,255,255,.05); }
+  .btn-ghost:hover { border-color: var(--line); }
+  .fineprint { margin-top: 16px; font-size: 13px; color: var(--faint); font-weight: 600; }
+  .fineprint a { color: var(--muted); }
+  /* stats */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: clamp(30px, 5vh, 54px) 0 0; }
+  .stat { border: 1px solid var(--line); border-radius: 24px; background: rgba(255,255,255,.04); padding: 20px 22px; text-align: center; }
+  .stat b { display: block; font-family: 'Baloo 2', sans-serif; font-size: clamp(24px, 3vw, 32px); color: var(--accent); }
+  .stat span { font-size: 13.5px; color: var(--muted); font-weight: 700; }
+  /* sections */
+  section.block { padding: clamp(44px, 7vh, 84px) 0 0; }
+  h2 { font-family: 'Baloo 2', sans-serif; font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; letter-spacing: -.2px; text-wrap: balance; }
+  .sub { color: var(--muted); max-width: 640px; margin-top: 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 26px; }
+  .card { border: 1px solid var(--line); border-radius: 24px; background: rgba(255,255,255,.04); padding: 24px; transition: border-color .25s var(--ease), transform .25s var(--ease); }
+  .card:hover { border-color: rgba(94,234,212,.55); transform: translateY(-2px); }
+  .card h3 { font-size: 17px; font-weight: 800; margin-bottom: 8px; }
+  .card p { font-size: 14.5px; color: var(--muted); }
+  .card .n { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 999px; background: rgba(94,234,212,.12); border: 1px solid rgba(94,234,212,.4); color: var(--accent); font-weight: 800; font-size: 14px; margin-bottom: 14px; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: .88em; background: rgba(0,0,0,.3); border: 1px solid var(--line-soft); border-radius: 8px; padding: 1px 8px; }
+  ol.steps { margin: 22px 0 0 22px; color: var(--muted); display: grid; gap: 10px; }
+  ol.steps li::marker { color: var(--accent); font-weight: 800; }
+  .note { margin-top: 22px; border: 1px solid var(--line); border-radius: 20px; padding: 18px 22px; background: rgba(255,255,255,.03); color: var(--muted); font-size: 14.5px; }
+  .note b { color: var(--text); }
+  /* servers */
+  .server-list { display: grid; gap: 10px; margin-top: 24px; }
+  .server-row { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,255,255,.04); padding: 14px 18px; }
+  .server-row .ip { font-family: ui-monospace, Consolas, monospace; font-size: 13px; background: rgba(0,0,0,.3); border: 1px solid var(--line-soft); padding: 3px 12px; border-radius: 999px; }
+  .server-row .nm { font-weight: 800; }
+  .server-row .mt { color: var(--muted); font-size: 13.5px; }
+  /* footer */
+  footer { margin: clamp(50px, 8vh, 90px) 0 0; border-top: 1px solid var(--line-soft); padding: 30px 0 46px; color: var(--faint); font-size: 13.5px; }
+  footer .wrap { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+  footer a { color: var(--muted); text-decoration: none; font-weight: 700; }
+  footer a:hover { color: var(--text); }
+  @media (max-width: 720px) {
+    .stats { grid-template-columns: 1fr; }
+    .nav-links { display: none; position: absolute; top: calc(100% + 8px); left: 0; right: 0; flex-direction: column; background: var(--bg-3); border: 1px solid var(--line); border-radius: 20px; padding: 8px; }
+    .nav-links.open { display: flex; }
+    .nav-toggle { display: block; }
+    nav .wrap { position: relative; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<nav><div class="wrap nav-inner" style="max-width:1080px">
+  <a class="brand" href="#top"><span class="brand-dot"></span>Soul Launcher</a>
+  <button class="nav-toggle" id="navToggle" aria-label="Menu">≡</button>
+  <div class="nav-links" id="navLinks">
+    <a href="#features">Features</a>
+    <a href="#sync">Sync</a>
+    <a href="#servers">Servers</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/unmid/SoulLauncher">GitHub</a>
+    <a class="nav-cta" href="https://github.com/unmid/SoulLauncher/releases/download/v1.0.0-beta/SoulLauncher-Setup.exe">Download</a>
+  </div>
+</div></nav>
+
+<div class="wrap" id="top">
+  <header class="hero">
+    <span class="beta-pill"><span class="beta-dot"></span>v1.0.0-beta · open source</span>
+    <h1>Minecraft, <span class="teal">without the chores.</span></h1>
+    <p class="lede">Soul Launcher keeps every setup in an isolated Space, syncs servers and settings across categories by itself, and stays around 125&nbsp;MB while it does it. Free, GPL, no account needed to play offline.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="https://github.com/unmid/SoulLauncher/releases/download/v1.0.0-beta/SoulLauncher-Setup.exe">Download for Windows</a>
+      <a class="btn btn-ghost" href="https://github.com/unmid/SoulLauncher">Source code</a>
+    </div>
+    <p class="fineprint">Beta — expect rough edges. <a href="https://github.com/unmid/SoulLauncher/issues">Report them here.</a> Windows SmartScreen note <a href="#install">below</a>.</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><b>~125 MB</b><span>RAM at the menu — the rest stays yours for the game</span></div>
+    <div class="stat"><b>4 steps</b><span>version, software, content, name — then Play</span></div>
+    <div class="stat"><b>100%</b><span>open source, GPL-3.0, no telemetry</span></div>
+  </div>
+
+  <section class="block" id="features">
+    <h2>What it actually does</h2>
+    <p class="sub">No folders to manage, no Java to hunt down, no loader installers to run by hand.</p>
+    <div class="grid">
+      <div class="card"><span class="n">1</span><h3>Isolated Spaces</h3><p>Each Space is one Minecraft version with its own loader, mods, worlds, and settings. A broken 1.8.9 Forge experiment can never touch your Fabric world.</p></div>
+      <div class="card"><span class="n">2</span><h3>Categories that sync themselves</h3><p>Group Spaces and their in-game servers plus settings stay identical across the group — add a server once, in-game, and every member has it.</p></div>
+      <div class="card"><span class="n">3</span><h3>Soul Client FPS builds</h3><p>One-click tuned Fabric clients built from public, inspectable mods. Manifest-only releases keep every file auditable.</p></div>
+      <div class="card"><span class="n">4</span><h3>Honest content browser</h3><p>Modrinth and CurseForge installs resolve files for your exact version and loader — or say plainly that nothing compatible exists.</p></div>
+      <div class="card"><span class="n">5</span><h3>Version honesty</h3><p>Never a silent "latest". Modpacks pin to your Minecraft version, snapshots are labeled, unsupported rows are marked before you click.</p></div>
+      <div class="card"><span class="n">6</span><h3>Quiet updates</h3><p>Signed in-app updates. Microsoft sign-in through the official flow, tokens in Windows Credential Manager, offline play supported.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="sync">
+    <h2>Sync without a sync button</h2>
+    <p class="sub">There is deliberately no "manage servers" screen. The game files are the truth; the launcher just keeps every member of a category pointed at the same ones — one shared <code>servers.dat</code> and <code>options.txt</code> per group, linked with OS symlinks (atomic copy fallback where Windows refuses), parsed as real NBT so a corrupt write can never poison the group.</p>
+  </section>
+
+  <section class="block" id="servers">
+    <h2>Servers, live from the repo</h2>
+    <p class="sub">The in-app list is this file, so anyone can read or propose to it: <code>serverlist.json</code>. A few entries right now:</p>
+    <div class="server-list" id="serverList"><div class="server-row"><span class="mt">Loading…</span></div></div>
+  </section>
+
+  <section class="block" id="install">
+    <h2>Install in two minutes</h2>
+    <ol class="steps">
+      <li>Download <code>SoulLauncher-Setup.exe</code> from the <a href="https://github.com/unmid/SoulLauncher/releases/tag/v1.0.0-beta" style="color:var(--accent)">v1.0.0-beta release</a> and run it.</li>
+      <li>Create a Space: pick Minecraft, pick software, optionally add content, name it.</li>
+      <li>Press Play. Java, loaders, and libraries download themselves on first run.</li>
+    </ol>
+    <div class="note"><b>SmartScreen will complain.</b> The beta is not code-signed, so Windows shows "Windows protected your PC". Click <b>More info → Run anyway</b>, or build from source (<code>npm ci &amp;&amp; npm run dist</code>) and trust nobody. Full details in the <a href="https://github.com/unmid/SoulLauncher#download" style="color:var(--accent)">README</a>.</div>
+  </section>
+
+  <footer><div class="wrap" style="padding:0">
+    <span>© <span id="year"></span> Soul Launcher contributors · GPL-3.0 · a fork of OpenLauncher</span>
+    <span><a href="https://github.com/unmid/SoulLauncher">Source</a> · <a href="https://github.com/unmid/SoulLauncher/issues">Issues</a> · <a href="https://github.com/unmid/SoulLauncher/releases">Releases</a></span>
+  </div></footer>
+</div>
+
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+  var t = document.getElementById('navToggle'), l = document.getElementById('navLinks');
+  t.addEventListener('click', function () { l.classList.toggle('open'); });
+  l.addEventListener('click', function (e) { if (e.target.tagName === 'A') l.classList.remove('open'); });
+  fetch('https://raw.githubusercontent.com/unmid/SoulLauncher/main/serverlist.json')
+    .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+    .then(function (d) {
+      var box = document.getElementById('serverList');
+      var items = (d.servers || []).slice(0, 5);
+      if (!items.length) throw 0;
+      box.innerHTML = '';
+      items.forEach(function (s) {
+        var row = document.createElement('div');
+        row.className = 'server-row';
+        var addr = s.ip + ((s.port && s.port !== 25565) ? ':' + s.port : '');
+        row.innerHTML = '<div><div class="nm"></div><div class="mt"></div></div><span class="ip" style="margin-left:auto"></span>';
+        row.querySelector('.nm').textContent = s.name;
+        row.querySelector('.mt').textContent = s.motd || s.category || '';
+        row.querySelector('.ip').textContent = addr;
+        box.appendChild(row);
+      });
+    })
+    .catch(function () {
+      document.getElementById('serverList').innerHTML =
+        '<div class="server-row"><span class="mt">List unavailable right now — open the app or read serverlist.json in the repo.</span></div>';
+    });
+</script>
+</body>
+</html>

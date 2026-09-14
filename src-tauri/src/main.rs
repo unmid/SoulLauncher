@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod accounts;
+mod categories;
 mod content;
 mod download;
 mod hardware;
@@ -14,6 +15,7 @@ mod mojang;
 mod profile;
 mod remote;
 mod servers;
+mod servers_dat;
 mod soulclient;
 mod spaces;
 mod storage;
@@ -358,6 +360,7 @@ fn import_space(state: State<AppState>, path: String) -> Result<spaces::Space, S
         created_at: spaces::now_secs(),
         last_played: None,
         ram_gb: export.ram_gb,
+        category_id: None,
         shortcut: None,
     };
     let mut all = state.spaces();
@@ -386,6 +389,175 @@ fn import_space(state: State<AppState>, path: String) -> Result<spaces::Space, S
         });
     }
     Ok(space)
+}
+
+// ---------------------------------------------------------------------------
+// categories: shared settings + server-list groups
+
+#[tauri::command]
+fn list_categories(state: State<AppState>) -> Vec<spaces::SpaceCategory> {
+    spaces::load_categories(&state.root)
+}
+
+#[tauri::command]
+fn create_category(state: State<AppState>, name: String, color: String) -> Result<spaces::SpaceCategory, String> {
+    let cat = categories::new_category(&name, &color)?;
+    let mut all = spaces::load_categories(&state.root);
+    all.push(cat.clone());
+    spaces::save_categories(&state.root, &all)?;
+    Ok(cat)
+}
+
+#[tauri::command]
+fn rename_category(state: State<AppState>, category_id: String, name: String, color: Option<String>) -> Result<(), String> {
+    let clean: String = name.chars().filter(|c| !c.is_control()).take(32).collect();
+    let clean = clean.trim().to_string();
+    if clean.is_empty() {
+        return Err("Give the category a name".into());
+    }
+    let mut all = spaces::load_categories(&state.root);
+    let slot = all.iter_mut().find(|c| c.id == category_id).ok_or("Category not found")?;
+    slot.name = clean;
+    if let Some(c) = color {
+        if c.starts_with('#') && c.len() == 7 {
+            slot.color = c;
+        }
+    }
+    spaces::save_categories(&state.root, &all)
+}
+
+/// Delete a category. Spaces keep their files but lose the shared link.
+/// Symlinks are materialized to real copies first so no settings are lost.
+#[tauri::command]
+fn delete_category(state: State<AppState>, category_id: String) -> Result<(), String> {
+    let mut cats = spaces::load_categories(&state.root);
+    cats.retain(|c| c.id != category_id);
+    spaces::save_categories(&state.root, &cats)?;
+    let mut all = state.spaces();
+    for s in all.iter_mut() {
+        if s.category_id.as_deref() == Some(&category_id) {
+            let _ = categories::detach_space(&state.root, &s.id);
+            s.category_id = None;
+        }
+    }
+    state.persist_spaces(&all)?;
+    categories::remove_shared(&state.root, &category_id);
+    Ok(())
+}
+
+/// Move a Space into a category (or out with None).
+/// Joining auto-relinks `servers.dat` + `options.txt` to
+/// `categories/<id>/shared/` via symlink (copy fallback) — no manual setup.
+/// Leaving materializes symlinks back to standalone copies.
+#[tauri::command]
+fn set_space_category(state: State<AppState>, space_id: String, category_id: Option<String>) -> Result<spaces::Space, String> {
+    if let Some(cid) = &category_id {
+        if !cid.trim().is_empty() && !spaces::load_categories(&state.root).iter().any(|c| &c.id == cid) {
+            return Err("Category not found".into());
+        }
+    }
+    let clean = category_id.filter(|c| !c.trim().is_empty());
+    let mut all = state.spaces();
+    let leaving = {
+        let cur = all.iter().find(|s| s.id == space_id).ok_or("Space not found")?;
+        cur.category_id.is_some() && clean.is_none()
+    };
+    if leaving {
+        categories::detach_space(&state.root, &space_id)?;
+    }
+    let space = all.iter_mut().find(|s| s.id == space_id).ok_or("Space not found")?;
+    space.category_id = clean;
+    let space = space.clone();
+    if space.category_id.is_some() {
+        categories::ensure_category_links(&state.root, &space)?;
+    }
+    state.persist_spaces(&all)?;
+    Ok(space)
+}
+
+// ---------------------------------------------------------------------------
+// Category shared files: real servers.dat (NBT) + options.txt editing.
+// The frontend Category UI reads/writes the SHARED truth directly; symlinked
+// members see it instantly because they open the same file.
+
+#[tauri::command]
+fn get_category_servers(state: State<AppState>, category_id: String) -> Result<Vec<servers_dat::CategoryServer>, String> {
+    let path = categories::shared_dir(&state.root, &category_id).join("servers.dat");
+    servers_dat::read_servers_dat(&path)
+}
+
+#[tauri::command]
+fn set_category_servers(state: State<AppState>, category_id: String, servers: Vec<servers_dat::CategoryServer>) -> Result<(), String> {
+    let path = categories::shared_dir(&state.root, &category_id).join("servers.dat");
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    servers_dat::write_servers_dat(&path, &servers)?;
+    // Copy-fallback members (no symlink privilege) get the update pushed now.
+    for s in state.spaces().iter().filter(|s| s.category_id.as_deref() == Some(&category_id)) {
+        let link = spaces::space_dir(&state.root, &s.id).join("servers.dat");
+        if !servers_dat::is_linked_to(&link, &path) {
+            let _ = std::fs::copy(&path, &link);
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn get_category_options(state: State<AppState>, category_id: String) -> Result<servers_dat::CategoryOptions, String> {
+    let path = categories::shared_dir(&state.root, &category_id).join("options.txt");
+    servers_dat::read_options_txt(&path)
+}
+
+#[tauri::command]
+fn set_category_options(state: State<AppState>, category_id: String, entries: Vec<[String; 2]>) -> Result<(), String> {
+    let path = categories::shared_dir(&state.root, &category_id).join("options.txt");
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    servers_dat::write_options_txt(&path, &entries)?;
+    for s in state.spaces().iter().filter(|s| s.category_id.as_deref() == Some(&category_id)) {
+        let link = spaces::space_dir(&state.root, &s.id).join("options.txt");
+        if !servers_dat::is_linked_to(&link, &path) {
+            let _ = std::fs::copy(&path, &link);
+        }
+    }
+    Ok(())
+}
+
+/// How is a Space currently linked? "symlink" | "copy" | "none" (+ per-file detail).
+#[tauri::command]
+fn space_link_status(state: State<AppState>, space_id: String) -> Result<serde_json::Value, String> {
+    let all = state.spaces();
+    let space = all.iter().find(|s| s.id == space_id).ok_or("Space not found")?;
+    let Some(cat) = &space.category_id else {
+        return Ok(serde_json::json!({ "mode": "none", "files": {} }));
+    };
+    let shared = categories::shared_dir(&state.root, cat);
+    let dir = spaces::space_dir(&state.root, &space_id);
+    let mut files = serde_json::Map::new();
+    let mut any_copy = false;
+    for f in categories::SHARED_FILES {
+        let linked = servers_dat::is_linked_to(&dir.join(f), &shared.join(f));
+        if !linked {
+            any_copy = true;
+        }
+        files.insert(f.to_string(), serde_json::Value::Bool(linked));
+    }
+    Ok(serde_json::json!({ "mode": if any_copy { "copy" } else { "symlink" }, "files": files }))
+}
+
+/// Force re-link every member of a category (used after moves / repairs).
+#[tauri::command]
+fn relink_category(state: State<AppState>, category_id: String) -> Result<String, String> {
+    let mut mode = "symlink".to_string();
+    for s in state.spaces().iter().filter(|s| s.category_id.as_deref() == Some(&category_id)) {
+        let m = categories::ensure_category_links(&state.root, s)?;
+        if m == "copy" {
+            mode = "copy".to_string();
+        }
+    }
+    Ok(mode)
 }
 
 // ---------------------------------------------------------------------------
@@ -944,6 +1116,7 @@ async fn install_modpack(
         created_at: spaces::now_secs(),
         last_played: None,
         ram_gb: None,
+        category_id: None,
         shortcut: None,
     };
     if !loaders::LOADER_KINDS.contains(&space.loader.as_str()) {
@@ -989,6 +1162,7 @@ async fn import_modpack_file(
         created_at: spaces::now_secs(),
         last_played: None,
         ram_gb: None,
+        category_id: None,
         shortcut: None,
     };
     if !loaders::LOADER_KINDS.contains(&space.loader.as_str()) {
@@ -1370,6 +1544,23 @@ async fn launch_space(
                 },
             );
         });
+        // Category settings sync: after the game closes, the Space's options
+        // and server list become the truth for its whole category.
+        let sync_root = root.clone();
+        let sync_space = space.clone();
+        let sync_app = app2.clone();
+        let sync_log_root = log_root.clone();
+        let on_exit: Arc<launch::ExitFn> = {
+            let prev = on_exit;
+            Arc::new(move |code| {
+                prev(code);
+                if code.is_some() {
+                    if let Err(e) = categories::pull_space_into_shared(&sync_root, &sync_space) {
+                        record_log(&sync_app, &sync_log_root, "error", "category", &format!("Couldn't sync category settings back: {e}"));
+                    }
+                }
+            })
+        };
         let result = launch::prepare_and_launch(
             http,
             root.clone(),
@@ -1540,6 +1731,17 @@ fn main() {
             list_spaces,
             create_space,
             update_space,
+            list_categories,
+            create_category,
+            rename_category,
+            delete_category,
+            set_space_category,
+            get_category_servers,
+            set_category_servers,
+            get_category_options,
+            set_category_options,
+            space_link_status,
+            relink_category,
             duplicate_space,
             delete_space,
             open_space_folder,
@@ -1631,6 +1833,7 @@ fn selftest(root: PathBuf, settings: store::Settings, mc: String, loader: String
             created_at: spaces::now_secs(),
             last_played: None,
             ram_gb: Some(2),
+            category_id: None,
             shortcut: None,
         };
 

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { api, avatarUrl } from './api.js'
-import { IconMusic, IconPlay, AppIcon, IconSun, IconMoon } from './icons.jsx'
+import { IconMusic, IconPlay, IconUser, IconSun, IconMoon, IconHome, IconLayers, IconServer, IconGear } from './icons.jsx'
 
 // Each page lives in its own chunk; they're all prefetched right after the
 // first paint, so switching pages later is instant and seamless.
@@ -20,6 +20,14 @@ const NAV = [
   { id: 'account', label: 'Account', icon: 'user' },
   { id: 'settings', label: 'Settings', icon: 'tune' },
 ]
+
+const NAV_ICONS = {
+  home: IconHome,
+  grid: IconLayers,
+  list: IconServer,
+  user: IconUser,
+  tune: IconGear,
+}
 
 const PAGE_TITLES = {
   home: 'Home',
@@ -46,13 +54,13 @@ async function loadMusicList() {
 }
 const BROWSER_SETTINGS = {
   ramGb: 4, closeOnPlay: true,
-  extraJvmArgs: '', activeAccountId: null, theme: 'dark', accent: '#f26a3c',
+  extraJvmArgs: '', activeAccountId: null, theme: 'dark', accent: '#5eead4',
   music: false, musicVolume: 0.35, animations: true, wallpapers: true, optimizeMode: 'off',
   optimizeAuto: false, optimizeRenderDistance: 10, selectedSpaceId: null,
 }
 const DESKTOP_RUNTIME = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
 
-const PALE_ACCENTS = ['#f26a3c', '#3ea1d9', '#eeb64d', '#ef8fa5', '#71b06c', '#8d7ae0', '#e0503a', '#4fc4b5']
+const PALE_ACCENTS = ['#5eead4', '#38bdf8', '#fbbf24', '#fb7185', '#34d399', '#a78bfa', '#f87171', '#2dd4bf']
 
 export default function App() {
   const [ready, setReady] = useState(false)
@@ -436,15 +444,20 @@ export default function App() {
           {NAV.map((item, i) => item.section ? (
             <div key={`s${i}`} className="nav-section">{item.section}</div>
           ) : (
-            <button
-              key={item.id}
-              className={`nav-item ${page === item.id ? 'active' : ''}`}
-              onClick={() => navigate(item.id)}
-              title={item.label}
-            >
-              <span className="nav-ic"><AppIcon name={item.icon} size={21} /></span>
-              <span>{item.label}</span>
-            </button>
+            (() => {
+              const NavIcon = NAV_ICONS[item.icon]
+              return (
+                <button
+                  key={item.id}
+                  className={`nav-item ${page === item.id ? 'active' : ''}`}
+                  onClick={() => navigate(item.id)}
+                  title={item.label}
+                >
+                  <span className="nav-ic"><span className="nav-ic-svg">{NavIcon && <NavIcon size={22} />}</span></span>
+                  <span>{item.label}</span>
+                </button>
+              )
+            })()
           ))}
         </nav>
         <div className="sidenav-foot">
@@ -486,7 +499,7 @@ export default function App() {
               </>
             ) : (
               <>
-                <img src="./icons/app/user.png" width={30} height={30} alt="" draggable={false} />
+                <span className="sidenav-account-img"><IconUser size={22} /></span>
                 <span className="sa-text" style={{ flex: 1, minWidth: 0 }}>
                   <span className="sa-name">Add account</span>
                   <span className="sa-sub">Required to play</span>
@@ -516,6 +529,7 @@ export default function App() {
           <SpaceWizard
             existing={wizardState === 'new' ? null : (wizardState?.mode === 'new' ? null : wizardState)}
             initialLoader={wizardState?.loader || null}
+            initialCategoryId={wizardState?.categoryId || null}
             settings={settings}
             onClose={() => setWizardState(null)}
             onSaved={refreshSpaces}
@@ -602,10 +616,12 @@ function accentInk(hex) {
 
 function migrateAccent(old) {
   const table = {
-    '#5ac8fa': '#3ea1d9', '#7d7aff': '#8d7ae0', '#ff6482': '#ef8fa5', '#30d158': '#71b06c',
-    '#ffd60a': '#eeb64d', '#ff9f0a': '#f26a3c', '#bf5af2': '#8d7ae0', '#64d2ff': '#3ea1d9',
+    '#5ac8fa': '#38bdf8', '#7d7aff': '#a78bfa', '#ff6482': '#fb7185', '#30d158': '#34d399',
+    '#ffd60a': '#fbbf24', '#ff9f0a': '#5eead4', '#bf5af2': '#a78bfa', '#64d2ff': '#38bdf8',
+    '#f26a3c': '#5eead4', '#3ea1d9': '#38bdf8', '#eeb64d': '#fbbf24', '#ef8fa5': '#fb7185',
+    '#71b06c': '#34d399', '#8d7ae0': '#a78bfa', '#e0503a': '#f87171', '#4fc4b5': '#2dd4bf',
   }
-  const hex = table[old] || '#f26a3c'
+  const hex = table[old] || '#5eead4'
   return { hex, ink: accentInk(hex) }
 }
 

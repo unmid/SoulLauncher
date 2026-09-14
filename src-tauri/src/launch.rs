@@ -53,7 +53,10 @@ pub async fn prepare_and_launch(
     let space_root = space_dir(&root, &space.id);
     let _ = std::fs::create_dir_all(&space_root);
 
-    // optimization presets apply to the Space's own options.txt
+    // optimization presets apply to the Space's own options.txt. They run
+    // BEFORE category sync: preset values land first, then the category's
+    // shared user settings (options.txt as the user last saved them) take
+    // precedence — the shared file IS the user's truth for the group.
     if settings.optimize_mode == "balanced" || settings.optimize_mode == "performance" {
         let _ = crate::hardware::apply_options_txt(
             &space_root,
@@ -357,6 +360,15 @@ pub async fn prepare_and_launch(
         args.game.push(host.clone());
         args.game.push("--port".into());
         args.game.push(port.to_string());
+    }
+
+    // Category sync happens last, right before the process spawns: the
+    // shared options.txt / servers.dat of the Space's category overwrite
+    // the local copies so every member boots with the same settings. The
+    // optimize presets above run first — shared user settings win, because
+    // whatever the category says IS the user's latest choice.
+    if let Err(e) = crate::categories::push_shared_into_space(&root, space) {
+        sink_emit(&sink_arc)("loader", &format!("Category settings skipped: {e}"), 0, 0);
     }
 
     if actually_launch {

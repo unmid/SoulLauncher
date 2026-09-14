@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { LOADER_META, LoaderMark, SpaceIcon, IconPlay, IconEdit, IconCopy, IconFolder, IconClock, IconShare, IconMore, IconWarn, IconExternal, AppIcon } from './icons.jsx'
+import { LOADER_META, LoaderMark, SpaceIcon, IconPlay, IconEdit, IconCopy, IconFolder, IconClock, IconShare, IconMore, IconWarn, IconExternal, IconTrash } from './icons.jsx'
 import { api, saveFileDialog } from './api.js'
 import { progressDetail } from './App.jsx'
 
@@ -11,7 +11,7 @@ export function progressPercent(p) {
 
 const BUSY_STAGES = ['loader', 'version', 'files', 'java', 'launching']
 
-export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, onDeleted, notify }) {
+export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, onDeleted, notify, draggable = false }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState(null)
   const menuButtonRef = useRef(null)
@@ -128,11 +128,20 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
   }
 
   return (
-    <div className={`space-card ${running ? 'space-card-running' : ''}`} style={{ '--space-color': space.color }}>
+    <div
+      className={`space-card ${running ? 'space-card-running' : ''} ${draggable ? 'space-card-draggable' : ''}`}
+      style={{ '--space-color': space.color }}
+      draggable={draggable}
+      onDragStart={(e) => {
+        if (!draggable) return
+        e.dataTransfer.setData('text/soul-space', space.id)
+        e.dataTransfer.effectAllowed = 'move'
+      }}
+    >
       <div className="space-card-glow" />
       <div className="space-card-top">
         <div className="space-icon" aria-hidden="true">
-          <SpaceIcon name={space.icon} size={30} />
+          <SpaceIcon name={space.icon} size={34} />
         </div>
         <button
           ref={menuButtonRef}
@@ -142,17 +151,17 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
           aria-expanded={menuOpen}
           onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o) }}
         >
-          <IconMore size={18} />
+          <IconMore size={19} />
         </button>
         {menuOpen && menuAnchor && createPortal(
           <div className="menu-layer" onPointerDown={(e) => { if (e.target === e.currentTarget) setMenuOpen(false) }}>
             <div className="space-menu space-menu-pop" role="menu" style={{ top: menuAnchor.top, left: menuAnchor.left, width: menuAnchor.width }} onMouseDown={(e) => e.preventDefault()}>
-              <button onClick={() => { setMenuOpen(false); onEdit(space) }}><IconEdit size={15} /> Edit</button>
-              <button onClick={pinToDesktop}><IconExternal size={15} /> Pin to Desktop</button>
-              <button onClick={duplicate}><IconCopy size={15} /> Duplicate</button>
-              <button onClick={exportSpace}><IconShare size={15} /> Export</button>
-              <button onClick={openFolder}><IconFolder size={15} /> Open folder</button>
-              <button className="danger" onClick={() => { setMenuOpen(false); setConfirmDelete(true) }}><AppIcon name="trash" size={16} /> Delete</button>
+              <button onClick={() => { setMenuOpen(false); onEdit(space) }}><IconEdit size={16} /> Edit</button>
+              <button onClick={pinToDesktop}><IconExternal size={16} /> Pin to Desktop</button>
+              <button onClick={duplicate}><IconCopy size={16} /> Duplicate</button>
+              <button onClick={exportSpace}><IconShare size={16} /> Export</button>
+              <button onClick={openFolder}><IconFolder size={16} /> Open folder</button>
+              <button className="danger" onClick={() => { setMenuOpen(false); setConfirmDelete(true) }}><IconTrash size={16} /> Delete</button>
             </div>
           </div>,
           document.body,
@@ -162,7 +171,7 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
       <div className="space-name">{space.name}</div>
       <div className="space-tags">
         <span className="tag tag-loader">
-          <Mark size={13} /> {meta.label}{space.loaderVersion ? ' ' + space.loaderVersion : ''}
+          <Mark size={15} /> {meta.label}{space.loaderVersion ? ' ' + space.loaderVersion : ''}
         </span>
         <span className="tag">{space.mcVersion}</span>
         {counts.mod > 0 && <span className="tag">{counts.mod} mod{counts.mod > 1 ? 's' : ''}</span>}

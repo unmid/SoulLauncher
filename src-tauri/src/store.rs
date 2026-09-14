@@ -64,7 +64,7 @@ pub struct Settings {
 }
 
 fn default_accent() -> String {
-    "#f26a3c".into()
+    "#5eead4".into()
 }
 fn default_music_volume() -> f32 {
     0.35

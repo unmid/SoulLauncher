@@ -53,6 +53,15 @@ export const api = {
   duplicateSpace: (spaceId) => invoke('duplicate_space', { spaceId }),
   pinSpaceShortcut: (spaceId) => invoke('pin_space_shortcut', { spaceId }),
   unpinSpaceShortcut: (spaceId) => invoke('unpin_space_shortcut', { spaceId }),
+
+  // categories (shared settings + server list groups)
+  // Members share ONE servers.dat (gzipped NBT) + ONE options.txt via
+  // OS symlinks to storage/categories/<id>/shared/ (copy fallback).
+  listCategories: () => isTauriRuntime() ? invoke('list_categories') : Promise.resolve([]),
+  createCategory: (name, color) => invoke('create_category', { name, color }),
+  renameCategory: (categoryId, name, color) => invoke('rename_category', { categoryId, name, color }),
+  deleteCategory: (categoryId) => invoke('delete_category', { categoryId }),
+  setSpaceCategory: (spaceId, categoryId) => invoke('set_space_category', { spaceId, categoryId }),
   launchArgs: () => isTauriRuntime() ? invoke('launch_args') : Promise.resolve([]),
   deleteSpace: (spaceId, deleteFiles = true) => invoke('delete_space', { spaceId, deleteFiles }),
   openSpaceFolder: (spaceId) => invoke('open_space_folder', { spaceId }),
@@ -62,8 +71,6 @@ export const api = {
   // content (mods / packs / shaders)
   searchContent: ({ source = 'modrinth', kind = 'mod', query = '', mcVersion = '', loader = '', sort = 'relevance', offset = 0 }) =>
     invoke('search_content', { source, kind, query, mcVersion, loader, sort, offset }),
-  getContentDetails: ({ source = 'modrinth', projectId }) =>
-    invoke('content_details', { source, projectId }),
   installContent: (spaceId, { source, kind, projectId }) =>
     invoke('install_content', { spaceId, source, kind, projectId }),
   removeContent: (spaceId, projectId) => invoke('remove_content', { spaceId, projectId }),

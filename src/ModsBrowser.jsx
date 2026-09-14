@@ -15,6 +15,7 @@ const SOURCES = [
   { id: 'modrinth', label: 'Modrinth' },
   { id: 'curseforge', label: 'CurseForge' },
 ]
+const PAGE_SIZE = 24
 
 function installedRecord(items, source, projectId) {
   const stored = `${source}:${projectId}`
@@ -39,6 +40,7 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
   // datapack install target picker: {hit, worlds} | null
   const [datapackPick, setDatapackPick] = useState(null)
   const debounce = useRef(null)
+  const listRef = useRef(null)
   // Monotonic id so a slow older search can never overwrite a newer one.
   const searchIdRef = useRef(0)
 
@@ -98,8 +100,8 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
         didRelax = hits.length > 0
       }
       setRelaxed(didRelax)
-      if (off === 0) setResults(hits)
-      else setResults((current) => [...current, ...hits])
+      // Pages replace results (the pager below navigates); never append.
+      setResults(hits)
       setTotal(totalHits)
       setOffset(off)
     } catch (e) {
@@ -231,10 +233,46 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
     installContentItem('datapack', hit, world)
   }
 
+  // --- pager (rendered above AND below the list) ---
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const page = Math.min(totalPages, Math.floor(offset / PAGE_SIZE) + 1)
+  const goPage = (p) => {
+    const next = Math.max(1, Math.min(totalPages, p))
+    doSearch(query, sort, (next - 1) * PAGE_SIZE)
+    requestAnimationFrame(() => {
+      try { listRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }) } catch {}
+    })
+  }
+  const pageWindow = (() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    const keep = new Set([1, 2, page - 1, page, page + 1, totalPages - 1, totalPages])
+    const nums = [...keep].filter((n) => n >= 1 && n <= totalPages).sort((a, b) => a - b)
+    const out = []
+    nums.forEach((n, i) => {
+      if (i > 0 && n - nums[i - 1] > 1) out.push('…')
+      out.push(n)
+    })
+    return out
+  })()
+  const pager = totalPages > 1 ? (
+    <div className="pager" role="navigation" aria-label="Result pages">
+      <button className="pager-btn" disabled={page <= 1 || loading} onClick={() => goPage(page - 1)} title="Previous page">‹ Prev</button>
+      {pageWindow.map((n, i) => n === '…'
+        ? <span key={`e${i}`} className="pager-ellipsis">…</span>
+        : (
+          <button key={n} className={`pager-btn ${n === page ? 'active' : ''}`} disabled={loading} onClick={() => goPage(n)} aria-current={n === page ? 'page' : undefined} title={`Page ${n}`}>
+            {n}
+          </button>
+        ))}
+      <button className="pager-btn" disabled={page >= totalPages || loading} onClick={() => goPage(page + 1)} title="Next page">Next ›</button>
+      <span className="pager-count">Page {page} of {totalPages} · {total} found</span>
+    </div>
+  ) : null
+
   return (
     <div className="mods-browser">
       <div className="content-tabs">
-        {KINDS.map((entry) => <button key={entry.id} className={`content-tab ${kind === entry.id ? 'active' : ''}`} onClick={() => setKind(entry.id)}><entry.icon size={15} /> {entry.label}</button>)}
+        {KINDS.map((entry) => <button key={entry.id} className={`content-tab ${kind === entry.id ? 'active' : ''}`} onClick={() => setKind(entry.id)}><entry.icon size={17} /> {entry.label}</button>)}
         <div className="segment">
           {SOURCES.map((entry) => <button key={entry.id} className={`segment-btn ${source === entry.id ? 'active' : ''}`} onClick={() => setSource(entry.id)}>{entry.label}</button>)}
         </div>
@@ -249,14 +287,14 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
       ) : (
         <>
           <div className="mods-toolbar">
-            <div className="search-box"><IconSearch size={16} /><input value={query} onChange={onQueryChange} placeholder={`Search ${KINDS.find((entry) => entry.id === kind)?.label.toLowerCase()} on ${source === 'modrinth' ? 'Modrinth' : 'CurseForge'}...`} /></div>
+            <div className="search-box"><IconSearch size={17} /><input value={query} onChange={onQueryChange} placeholder={`Search ${KINDS.find((entry) => entry.id === kind)?.label.toLowerCase()} on ${source === 'modrinth' ? 'Modrinth' : 'CurseForge'}...`} /></div>
             <label className="version-filter"><span>{isPackKind ? 'Pin MC' : 'Version'}</span><input value={versionFilter} onChange={(event) => setVersionFilter(event.target.value)} placeholder="1.21.1" /></label>
             {!isPackKind && (
               <label className="version-all-toggle"><input type="checkbox" checked={showAllVersions} onChange={(event) => setShowAllVersions(event.target.checked)} /> All versions</label>
             )}
             {directSpaceId && (
               <button className="btn btn-secondary btn-small" onClick={uploadFiles} disabled={busyId === '__upload'} title="Add local .jar/.zip files to this Space">
-                {busyId === '__upload' ? <span className="mini-spinner" /> : <IconPlus size={14} />} Add file…
+                {busyId === '__upload' ? <span className="mini-spinner" /> : <IconPlus size={15} />} Add file…
               </button>
             )}
           </div>
@@ -278,22 +316,28 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
               <button className="btn btn-secondary btn-small" onClick={() => doSearch(query, sort, 0)}>Try again</button>
             </div>
           )}
-          <div className="mods-list">
+          {pager}
+          <div className="mods-list" ref={listRef}>
             {results.map((hit) => {
               const record = installedRecord(activeMods, source, hit.projectId)
               const picked = !!record
+              const busy = busyId === hit.projectId
               const supported = isPackKind || kind === 'datapack' || !targetVersion || !hit.gameVersions?.length || hit.gameVersions.includes(targetVersion)
+              // One button, always labeled: Add ⇄ Remove. No icon-only guessing.
               const actionLabel = isPackKind
-                ? (busyId === hit.projectId ? <span className="mini-spinner" /> : <><IconRocket size={13} /> {targetVersion ? `Install · ${targetVersion}` : 'New Space'}</>)
-                : busyId === hit.projectId ? <span className="mini-spinner" /> : picked ? <IconCheck size={16} /> : <IconPlus size={16} />
+                ? (busy ? <span className="mini-spinner" /> : <><IconRocket size={14} /> Install</>)
+                : busy ? <span className="mini-spinner" />
+                : picked ? <><IconCheck size={15} /> Remove</>
+                : <><IconPlus size={15} /> Add</>
               return <div key={hit.projectId} className={`mod-row ${picked ? 'mod-row-picked' : ''} ${!supported ? 'mod-row-unsupported' : ''}`}>
-                {hit.iconUrl ? <img className="mod-icon" src={hit.iconUrl} alt="" loading="lazy" /> : <div className="mod-icon mod-icon-fallback"><IconCube size={18} /></div>}
+                {hit.iconUrl ? <img className="mod-icon" src={hit.iconUrl} alt="" loading="lazy" /> : <div className="mod-icon mod-icon-fallback"><IconCube size={22} /></div>}
                 <div className="mod-info">
                   <span className="mod-title">{hit.title}</span>
+                  {picked && <span className="picked-flag"><IconCheck size={11} /> In your Space</span>}
                   <div className="mod-desc">{hit.description}</div>
                   <div className="mod-meta">
-                    <span><IconDownload size={12} /> {fmtDownloads(hit.downloads)}</span>
-                    {hit.author && <span>- {hit.author}</span>}
+                    <span><IconDownload size={13} /> {fmtDownloads(hit.downloads)}</span>
+                    {hit.author && <span>by {hit.author}</span>}
                     {record?.versionNumber && <span className="installed-version">Installed {record.versionNumber}</span>}
                     {record?.world && <span className="installed-version">in world “{record.world}”</span>}
                     {!supported && <span className="support-no">No support for {targetVersion}</span>}
@@ -301,12 +345,12 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
                 </div>
                 <div className="mod-actions">
                   <button
-                    className={`mod-add-btn ${isPackKind ? 'mod-add-btn-pack' : ''} ${picked ? 'mod-add-btn-picked' : ''}`}
-                    disabled={busyId === hit.projectId || !supported}
+                    className={`mod-add-btn ${isPackKind ? 'mod-add-btn-pack' : ''} ${picked ? 'mod-add-btn-remove' : ''}`}
+                    disabled={busy || !supported}
                     onClick={() => toggle(hit)}
-                    title={isPackKind ? 'Create a new Space from this pack' : picked ? 'Remove from Space' : 'Add to Space'}
+                    title={isPackKind ? 'Create a new Space from this pack' : picked ? `Remove ${hit.title} from this Space` : `Add ${hit.title} to this Space`}
                   >{actionLabel}</button>
-                  {directSpaceId && picked && !isPackKind && kind !== 'datapack' && <button className="mod-add-btn mod-update-btn" disabled={busyId === hit.projectId || !supported} onClick={() => updateContent(hit)} title="Install the newest compatible version"><IconRefresh size={15} /></button>}
+                  {directSpaceId && picked && !isPackKind && kind !== 'datapack' && <button className="mod-add-btn mod-update-btn" disabled={busy || !supported} onClick={() => updateContent(hit)} title="Install the newest compatible version"><IconRefresh size={16} /></button>}
                 </div>
               </div>
             })}
@@ -328,7 +372,7 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
             {loading && results.length > 0 && <div className="mods-loading"><span className="mini-spinner" /> Searching…</div>}
             {!loading && !searchError && results.length === 0 && <div className="mods-empty"><div className="mods-empty-icon"><IconSearch size={30} /></div><div>Nothing found{query ? ` for "${query}"` : ''}</div><div className="mods-empty-sub">Try another name, or enable All versions to inspect compatibility.</div></div>}
           </div>
-          {results.length > 0 && results.length < total && !loading && <button className="btn btn-ghost mods-more" onClick={() => doSearch(query, sort, offset + 24)}>Show more ({results.length} of {total})</button>}
+          {pager}
         </>
       )}
 

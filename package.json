@@ -3,17 +3,21 @@
   "private": true,
   "version": "1.0.0",
   "description": "Soul Launcher - a fast, lightweight Minecraft launcher",
+  "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "dist": "npm run build && tauri build && npm run dist:copy || npm run dist:copy",
+    "dist:copy": "node -e \"const{copyFileSync,readdirSync,statSync,mkdirSync,existsSync}=require('fs');const{join}=require('path');const out='target/release/bundle/nsis';const rel='release';if(!existsSync(rel))mkdirSync(rel,{recursive:true});const fs=readdirSync(out).filter(f=>f.endsWith('-setup.exe')).sort((a,b)=>statSync(join(out,b)).mtimeMs-statSync(join(out,a)).mtimeMs);if(!fs.length){console.error('NSIS installer not found in '+out);process.exit(1)}copyFileSync(join(out,fs[0]),join(rel,'setup.exe'));console.log('wrote release/setup.exe from '+fs[0])\""
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.2",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.9.0",
+    "lucide-react": "^1.46.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "skinview3d": "^3.4.2"
