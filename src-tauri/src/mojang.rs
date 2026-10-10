@@ -36,7 +36,6 @@ pub struct Artifact {
 
 #[derive(Debug, Clone)]
 pub struct LibraryEntry {
-    #[allow(dead_code)] // mirrors the Mojang library JSON
     pub name: String,
     pub artifact: Option<Artifact>,
     pub natives: Option<Artifact>,
@@ -418,8 +417,10 @@ pub fn build_launch_args(
     }
 
     // RAM: remove Mojang's default memory flags, apply the user's choice.
+    // Initial heap stays at a small fixed 1 GB and grows to the user's limit
+    // (the previous `ram_gb.min(1).max(1)` always evaluated to 1 as well).
     jvm.retain(|a| !a.starts_with("-Xmx") && !a.starts_with("-Xms"));
-    let mut final_jvm = vec![format!("-Xmx{}G", ram_gb), format!("-Xms{}G", ram_gb.min(1).max(1))];
+    let mut final_jvm = vec![format!("-Xmx{}G", ram_gb), "-Xms1G".to_string()];
     final_jvm.extend(jvm);
     for extra in extra_jvm.split_whitespace() {
         if !extra.is_empty() {
@@ -567,7 +568,129 @@ pub fn collect_libraries(json: &Value, ctx: &HostCtx) -> Vec<LibraryEntry> {
             });
         }
     }
-    out
+    dedupe_libraries(out)
+}
+
+/// Maven coordinate key for cross-version dedup: `group:artifact[:classifier]`
+/// from `name`, falling back to the artifact path with the version masked out.
+fn coord_key(entry: &LibraryEntry) -> String {
+    let parts: Vec<&str> = entry.name.split(':').collect();
+    if parts.len() >= 2 {
+        let mut key = format!("{}:{}", parts[0].to_lowercase(), parts[1].to_lowercase());
+        if parts.len() > 3 {
+            key.push(':');
+            key.push_str(&parts[3].to_lowercase());
+        }
+        return key;
+    }
+    let path = entry
+        .artifact
+        .as_ref()
+        .map(|a| a.path.as_str())
+        .or_else(|| entry.natives.as_ref().map(|n| n.path.as_str()))
+        .unwrap_or("")
+        .replace('\\', "/");
+    let segs: Vec<&str> = path.split('/').collect();
+    if segs.len() >= 3 {
+        let version = segs[segs.len() - 2];
+        let file = segs[segs.len() - 1].replace(version, "*");
+        format!("{}/{}", segs[..segs.len() - 2].join("/"), file).to_lowercase()
+    } else {
+        path.to_lowercase()
+    }
+}
+
+/// Version string of an entry: maven coordinate part 3, else the path's
+/// version directory.
+fn entry_version(entry: &LibraryEntry) -> String {
+    let parts: Vec<&str> = entry.name.split(':').collect();
+    if parts.len() >= 3 && !parts[2].is_empty() {
+        return parts[2].to_string();
+    }
+    let path = entry
+        .artifact
+        .as_ref()
+        .map(|a| a.path.as_str())
+        .or_else(|| entry.natives.as_ref().map(|n| n.path.as_str()))
+        .unwrap_or("")
+        .replace('\\', "/");
+    let segs: Vec<&str> = path.split('/').collect();
+    if segs.len() >= 3 {
+        segs[segs.len() - 2].to_string()
+    } else {
+        String::new()
+    }
+}
+
+/// Numeric-aware dotted-version compare: 9.10.1 > 9.6, 1.21.10 > 1.21.1.
+fn cmp_version(a: &str, b: &str) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let mut ax = a.split('.');
+    let mut bx = b.split('.');
+    loop {
+        match (ax.next(), bx.next()) {
+            (None, None) => return Ordering::Equal,
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(x), Some(y)) => {
+                let ord = match (x.parse::<u64>(), y.parse::<u64>()) {
+                    (Ok(xn), Ok(yn)) => xn.cmp(&yn),
+                    _ => x.cmp(y),
+                };
+                if ord != Ordering::Equal {
+                    return ord;
+                }
+            }
+        }
+    }
+}
+
+/// True when `challenger` should replace `kept`: jar-bearing entries beat
+/// natives-only ones, otherwise the higher version wins.
+fn pick_winner(kept: &LibraryEntry, challenger: &LibraryEntry) -> bool {
+    match (kept.artifact.is_some(), challenger.artifact.is_some()) {
+        (true, false) => false,
+        (false, true) => true,
+        _ => cmp_version(&entry_version(challenger), &entry_version(kept))
+            == std::cmp::Ordering::Greater,
+    }
+}
+
+/// Loaders and vanilla can pin different versions of the same artifact
+/// (vanilla ships `asm:9.6`, Fabric loader ships `asm:9.10.1`) and Knot
+/// refuses classpaths that contain duplicates of any class. Keep exactly one
+/// entry per Maven coordinate - the highest version wins - and fold natives /
+/// extract excludes from dropped entries into the winner so nothing is lost.
+fn dedupe_libraries(entries: Vec<LibraryEntry>) -> Vec<LibraryEntry> {
+    let mut order: Vec<String> = Vec::new();
+    let mut best: HashMap<String, LibraryEntry> = HashMap::new();
+    for entry in entries {
+        let key = coord_key(&entry);
+        match best.remove(&key) {
+            Some(kept) => {
+                let pick_new = pick_winner(&kept, &entry);
+                let (mut winner, loser) = if pick_new { (entry, kept) } else { (kept, entry) };
+                if winner.natives.is_none() {
+                    winner.natives = loser.natives;
+                }
+                if winner.extract_exclude.is_empty() {
+                    winner.extract_exclude = loser.extract_exclude;
+                } else {
+                    for e in loser.extract_exclude {
+                        if !winner.extract_exclude.contains(&e) {
+                            winner.extract_exclude.push(e);
+                        }
+                    }
+                }
+                best.insert(key, winner);
+            }
+            None => {
+                order.push(key.clone());
+                best.insert(key, entry);
+            }
+        }
+    }
+    order.into_iter().filter_map(|k| best.remove(&k)).collect()
 }
 
 pub fn asset_index_info(json: &Value) -> Option<(String, String, Option<String>, u64)> {
@@ -705,5 +828,63 @@ mod tests {
         assert_eq!(maven_path("com.google.guava:guava:21.0").unwrap(), "com/google/guava/guava/21.0/guava-21.0.jar");
         assert_eq!(maven_path("org.lwjgl:lwjgl:3.3.1:natives-windows").unwrap(), "org/lwjgl/lwjgl/3.3.1/lwjgl-3.3.1-natives-windows.jar");
         assert!(maven_path("broken").is_none());
+    }
+
+    #[test]
+    fn duplicate_coordinates_keep_highest_version() {
+        // The real conflict: vanilla 1.21.10 pins asm:9.6 while the Fabric
+        // loader profile pins asm:9.10.1 - Knot dies on the pair.
+        let json = json!({
+            "libraries": [
+                {"name": "org.ow2.asm:asm:9.10.1"},
+                {"name": "org.ow2.asm:asm:9.6"},
+                {"name": "org.ow2.asm:asm-tree:9.10.1"},
+                {"name": "org.ow2.asm:asm-tree:9.6"},
+                {"name": "org.ow2.asm:asm-commons:9.6"}
+            ]
+        });
+        let ctx = HostCtx { is_windows: true, is_x86_64: true };
+        let libs = collect_libraries(&json, &ctx);
+        let names: Vec<&str> = libs.iter().map(|l| l.name.as_str()).collect();
+        assert_eq!(names, vec![
+            "org.ow2.asm:asm:9.10.1",
+            "org.ow2.asm:asm-tree:9.10.1",
+            "org.ow2.asm:asm-commons:9.6",
+        ]);
+        // Version compare is numeric per segment, not lexicographic.
+        assert_eq!(cmp_version("9.10.1", "9.6"), std::cmp::Ordering::Greater);
+        assert_eq!(cmp_version("1.21.10", "1.21.1"), std::cmp::Ordering::Greater);
+        assert_eq!(cmp_version("9.6", "9.6"), std::cmp::Ordering::Equal);
+    }
+
+    #[test]
+    fn natives_survive_coordinate_dedupe() {
+        // The winner keeps its jar; natives contributed only by the loser
+        // are folded in so the native extraction list stays complete.
+        let mut a = LibraryEntry {
+            name: "org.lwjgl:lwjgl:3.3.3".into(),
+            artifact: Some(Artifact { path: "org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar".into(), url: "u".into(), sha1: None, size: 0 }),
+            natives: None,
+            extract_exclude: vec!["META-INF".into()],
+        };
+        let mut b = LibraryEntry {
+            name: "org.lwjgl:lwjgl:3.3.1".into(),
+            artifact: None,
+            natives: Some(Artifact { path: "org/lwjgl/lwjgl/3.3.1/lwjgl-3.3.1-natives-windows.jar".into(), url: "u".into(), sha1: None, size: 0 }),
+            extract_exclude: vec!["META-INF".into(), "LICENSE".into()],
+        };
+        let out = dedupe_libraries(vec![a.clone(), b.clone()]);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].name, "org.lwjgl:lwjgl:3.3.3");
+        assert!(out[0].artifact.is_some());
+        assert!(out[0].natives.is_some(), "natives folded from the dropped entry");
+        assert_eq!(out[0].extract_exclude, vec!["META-INF".to_string(), "LICENSE".to_string()]);
+        // Order independent: natives-only loser first, jar winner second.
+        a.natives = None;
+        b.artifact = None;
+        let out = dedupe_libraries(vec![b, a]);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].name, "org.lwjgl:lwjgl:3.3.3");
+        assert!(out[0].natives.is_some());
     }
 }

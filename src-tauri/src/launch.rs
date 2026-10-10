@@ -107,7 +107,6 @@ pub async fn prepare_and_launch(
                 }
             };
             space.loader_version = Some(loader_ver.clone());
-            let loader_ver = loader_ver;
             crate::loaders::install_optifine(
                 &http,
                 &root,
@@ -226,16 +225,19 @@ pub async fn prepare_and_launch(
             }
         }
         if let Some(n) = &lib.natives {
-            let dest = root
-                .join("libraries")
-                .join(&n.path);
-            tasks.push(DownloadTask {
-                url: n.url.clone(),
-                dest: dest.clone(),
-                sha1: n.sha1.clone(),
-                size: n.size,
-            });
-            natives.push((dest, lib.extract_exclude.clone()));
+            // Same path de-dup as artifacts: merged profiles can repeat entries.
+            if seen_paths.insert(n.path.to_lowercase()) {
+                let dest = root
+                    .join("libraries")
+                    .join(&n.path);
+                tasks.push(DownloadTask {
+                    url: n.url.clone(),
+                    dest: dest.clone(),
+                    sha1: n.sha1.clone(),
+                    size: n.size,
+                });
+                natives.push((dest, lib.extract_exclude.clone()));
+            }
         }
     }
     // Mojang's launcher puts the client jar after all libraries.
@@ -386,8 +388,7 @@ pub async fn prepare_and_launch(
 }
 
 fn sink_emit(sink: &ProgressSink) -> Arc<ProgressFn> {
-    let inner = sink.inner.clone();
-    inner
+    sink.inner.clone()
 }
 
 fn sink_clone(sink: &ProgressSink) -> ProgressSink {

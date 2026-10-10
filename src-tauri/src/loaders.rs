@@ -205,7 +205,7 @@ pub async fn neoforge_versions(http: &reqwest::Client, mc: &str) -> Result<Vec<S
         return Ok(versions);
     }
     // NeoForge version "21.1.x" targets Minecraft "1.21.1".
-    let prefix = mc.trim_start_matches("1.").replace('.', ".");
+    let prefix = mc.trim_start_matches("1.");
     let url = "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
     let text = http
         .get(url)
@@ -561,22 +561,25 @@ pub async fn install_optifine(
     // the tweaker is a LaunchWrapper ITweaker, so with the vanilla main class it
     // would simply never run.
     let json = if is_legacy {
-        let mut j = vanilla_json.clone();
-        j.as_object_mut().map(|o| {
-            let mut legacy = vanilla_json
-                .get("minecraftArguments")
-                .and_then(|x| x.as_str())
-                .unwrap_or("")
-                .to_string();
-            if !legacy.contains("--tweakClass") {
-                legacy.push_str(" --tweakClass optifine.OptiFineTweaker");
-            }
-            o.insert("id".into(), Value::String(ofid.clone()));
-            o.insert("mainClass".into(), Value::String("net.minecraft.launchwrapper.Launch".into()));
-            o.insert("minecraftArguments".into(), Value::String(legacy));
-            o.insert("libraries".into(), Value::Array(libraries));
-        });
-        j
+        let mut legacy = vanilla_json
+            .get("minecraftArguments")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        if !legacy.contains("--tweakClass") {
+            legacy.push_str(" --tweakClass optifine.OptiFineTweaker");
+        }
+        // Inherit the vanilla profile (libraries, assets, downloads) exactly
+        // like the official OptiFine installer does. Replacing the library
+        // list instead of inheriting dropped lwjgl/guava and broke the launch.
+        serde_json::json!({
+            "id": ofid,
+            "inheritsFrom": mc,
+            "type": "release",
+            "mainClass": "net.minecraft.launchwrapper.Launch",
+            "minecraftArguments": legacy,
+            "libraries": libraries,
+        })
     } else {
         serde_json::json!({
             "id": ofid,

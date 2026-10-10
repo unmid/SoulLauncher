@@ -211,21 +211,16 @@ pub fn remove_shared(root: &PathBuf, category_id: &str) {
 }
 
 /// Validate + create a category.
-pub fn new_category(name: &str, color: &str) -> Result<SpaceCategory, String> {
+pub fn new_category(name: &str) -> Result<SpaceCategory, String> {
     let clean: String = name.chars().filter(|c| !c.is_control()).take(32).collect();
     let clean = clean.trim().to_string();
     if clean.is_empty() {
         return Err("Give the category a name".into());
     }
-    let color = if color.starts_with('#') && color.len() == 7 {
-        color.to_string()
-    } else {
-        "#3ea1d9".to_string()
-    };
     Ok(SpaceCategory {
         id: uuid::Uuid::new_v4().to_string(),
         name: clean,
-        color,
+        color: "#3ea1d9".to_string(),
         created_at: crate::spaces::now_secs(),
     })
 }

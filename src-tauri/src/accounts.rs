@@ -157,28 +157,17 @@ pub fn delete_refresh_token(account_key: &str) {
     }
 }
 
-/// Wait for the OAuth callback on a local port (127.0.0.1:8080..8088).
-fn wait_for_callback() -> Result<(String, u16), String> {
-    let mut listener_opt: Option<TcpListener> = None;
-    let mut used_port = 0u16;
+/// Bind the OAuth callback port (127.0.0.1:8080..8088). The listener is
+/// returned still bound: dropping it and re-binding after the API call left a
+/// window where another process could steal the port and the login failed.
+fn wait_for_callback() -> Result<(TcpListener, u16), String> {
     for port in 8080..8089 {
-        match TcpListener::bind(("127.0.0.1", port)) {
-            Ok(l) => {
-                listener_opt = Some(l);
-                used_port = port;
-                break;
-            }
-            Err(_) => continue,
+        if let Ok(listener) = TcpListener::bind(("127.0.0.1", port)) {
+            listener.set_nonblocking(false).map_err(|e| e.to_string())?;
+            return Ok((listener, port));
         }
     }
-    let listener = listener_opt.ok_or("Couldn't open the local login port (8080)")?;
-
-    // Ask the API for the Microsoft login URL, then open it in the browser.
-    // (this part is async, so it's handled by the caller)
-    listener
-        .set_nonblocking(false)
-        .map_err(|e| e.to_string())?;
-    Ok((String::new(), used_port))
+    Err("Couldn't open the local login port (8080-8088)".into())
 }
 
 fn read_callback(listener: &TcpListener, timeout: std::time::Duration) -> Result<String, String> {
@@ -191,7 +180,8 @@ fn read_callback(listener: &TcpListener, timeout: std::time::Duration) -> Result
             return Err("Login timed out. Please try again.".into());
         }
         match listener.accept() {
-            Ok((mut stream, _)) => {
+Ok((mut stream, _)) => {
+                let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(3)));
                 let mut buf = [0u8; 8192];
                 let n = stream.read(&mut buf).map_err(|e| e.to_string())?;
                 let req = String::from_utf8_lossy(&buf[..n]).to_string();
@@ -214,7 +204,7 @@ fn read_callback(listener: &TcpListener, timeout: std::time::Duration) -> Result
 }
 
 pub async fn ms_login(http: &reqwest::Client) -> Result<Account, String> {
-    let (_unused, port) = wait_for_callback()?;
+    let (listener, port) = wait_for_callback()?;
     let redirect_uri = format!("http://localhost:{port}/callback");
 
     let start: Value = http
@@ -243,14 +233,10 @@ pub async fn ms_login(http: &reqwest::Client) -> Result<Account, String> {
         .ok_or("Auth service returned no state")?
         .to_string();
 
-    let _ = open::that(&login_url);
+let _ = open::that(&login_url);
 
-    // block for the callback (max 5 min)
-    let listener = TcpListener::bind(("127.0.0.1", port)).map_err(|e| e.to_string());
-    let req = match listener {
-        Ok(l) => read_callback(&l, std::time::Duration::from_secs(300))?,
-        Err(_) => return Err("Login port closed early".into()),
-    };
+    // block for the callback (max 5 min) on the listener bound up front
+    let req = read_callback(&listener, std::time::Duration::from_secs(300))?;
 
     let (code, got_state) = parse_callback_query(&req)?;
     if got_state != state {

@@ -186,7 +186,7 @@ export default function App() {
   // ---- theming -----------------------------------------------------------
   useEffect(() => {
     if (!settings) return
-    const accent = settings.accent || '#f26a3c'
+    const accent = settings.accent || '#5eead4'
     if (!PALE_ACCENTS.includes(accent)) {
       // migrate old accents to the current palette (closest by hue distance in hex)
       const migrated = migrateAccent(accent)
@@ -204,7 +204,7 @@ export default function App() {
   // A rotating station, not a single looping track: tracks are shuffled, and
   // when one ends the player crossfades into another random track.
   const musicVolume = () => {
-    const v = Number(settings?.music_volume)
+    const v = Number(settings?.musicVolume)
     return Number.isFinite(v) && v > 0 ? Math.min(1, v) : 0.35
   }
 
@@ -220,7 +220,7 @@ export default function App() {
   // Live volume slider — retarget whatever is playing right now.
   useEffect(() => {
     if (musicRef.current && settings?.music !== false) fade(musicRef.current, musicVolume(), 300)
-  }, [settings?.music_volume]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settings?.musicVolume]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function shuffled(list) {
     const a = [...list]
@@ -291,6 +291,7 @@ export default function App() {
   // ---- launch progress -----------------------------------------------------
   useEffect(() => {
     let unlisten = null
+    let cancelled = false
     Promise.resolve(api.onProgress((p) => {
       // live download metrics: bytes/sec + seconds remaining
       if (p.stage === 'files' && p.total > 0) {
@@ -351,7 +352,7 @@ export default function App() {
       })
       if (p.stage === 'error') notify(p.message, 'error')
       if (p.stage === 'running') {
-        notify('Game started — good luck!', 'ok')
+        notify('Game started — good luck', 'ok')
         musicCtl.current.duck()
         refreshSpaces()
         if (settings?.closeOnPlay !== false) {
@@ -363,8 +364,12 @@ export default function App() {
         refreshSpaces()
         import('@tauri-apps/api/window').then(({ getCurrentWindow }) => getCurrentWindow().show().then(() => getCurrentWindow().setFocus())).catch(() => {})
       }
-    })).then((u) => { unlisten = u }).catch(() => {})
-    return () => { if (unlisten) unlisten() }
+    })).then((u) => {
+      // The effect may have been cleaned up before listen() resolved —
+      // unsubscribe immediately in that case instead of leaking a listener.
+      if (cancelled) { if (typeof u === 'function') u() } else { unlisten = u }
+    }).catch(() => {})
+    return () => { cancelled = true; if (unlisten) unlisten() }
   }, [notify, refreshSpaces, settings?.closeOnPlay])
 
   // validate the active microsoft account once
@@ -382,7 +387,7 @@ export default function App() {
   const play = async (space, server = null) => {
     if (!activeAccount) {
       setPage('account')
-      notify('Add an account first — it takes 10 seconds!', 'error')
+      notify('Add an account first — it takes 10 seconds', 'error')
       return
     }
     setProgress((prev) => ({
@@ -428,7 +433,7 @@ export default function App() {
   if (!ready) return <div className="boot" />
 
   const pageProps = {
-    settings, spaces, accounts, activeAccount, progress,
+    settings, spaces, accounts, activeAccount, selectedSpace, progress,
     play, notify, refreshSpaces, refreshAccounts, refreshSettings,
     saveSettings, navigate, openWizard: setWizardState, selectSpace,
   }
@@ -437,7 +442,7 @@ export default function App() {
     <div className="app">
       <aside className="sidenav">
         <div className="sidenav-brand" onClick={() => navigate('home')} title="Soul Launcher">
-          <span className="brand-badge"><img src="./icons/logo.png" width="26" height="26" alt="Orbit" draggable={false} /></span>
+          <span className="brand-badge"><img src="./icons/logo.png" width="26" height="26" alt="Soul Launcher" draggable={false} /></span>
           <span className="brand-word">Soul</span>
         </div>
         <nav className="sidenav-nav">
@@ -492,7 +497,7 @@ export default function App() {
             {activeAccount ? (
               <>
                 <img src={avatarUrl(activeAccount.username, 60)} alt="" draggable={false} />
-                <span className="sa-text" style={{ flex: 1, minWidth: 0 }}>
+                <span className="sa-text">
                   <span className="sa-name">{activeAccount.username}</span>
                   <span className="sa-sub">{activeAccount.kind === 'microsoft' ? 'Microsoft' : 'Offline'}</span>
                 </span>
@@ -500,7 +505,7 @@ export default function App() {
             ) : (
               <>
                 <span className="sidenav-account-img"><IconUser size={22} /></span>
-                <span className="sa-text" style={{ flex: 1, minWidth: 0 }}>
+                <span className="sa-text">
                   <span className="sa-name">Add account</span>
                   <span className="sa-sub">Required to play</span>
                 </span>
@@ -579,7 +584,7 @@ function TitleBar({ title }) {
   return (
     <header className="titlebar">
       <span className="titlebar-title">
-        <IconPlay size={12} style={{ color: 'var(--accent)' }} />
+        <IconPlay size={12} />
         {title}
       </span>
       <div

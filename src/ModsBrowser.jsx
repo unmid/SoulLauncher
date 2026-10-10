@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { api, fmtDownloads, openFileDialog } from './api.js'
 import Dropdown from './Dropdown.jsx'
+import { useExit } from './useExit.js'
 import { IconSearch, IconPlus, IconCheck, IconX, IconDownload, IconCube, IconBrush, IconSparkle, IconRefresh, IconRocket, IconLayers, IconWarn } from './icons.jsx'
 
 const KINDS = [
@@ -39,6 +40,7 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
   const [directMods, setDirectMods] = useState(spacesModList)
   // datapack install target picker: {hit, worlds} | null
   const [datapackPick, setDatapackPick] = useState(null)
+  const { closing: pickClosing, close: closePick } = useExit(() => setDatapackPick(null))
   const debounce = useRef(null)
   const listRef = useRef(null)
   // Monotonic id so a slow older search can never overwrite a newer one.
@@ -63,11 +65,11 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
   useEffect(() => {
     if (!datapackPick) return undefined
     const onKeyDown = (event) => {
-      if (event.key === 'Escape') { setDatapackPick(null) }
+      if (event.key === 'Escape') { closePick() }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [datapackPick])
+  }, [datapackPick, closePick])
 
   const modsBlocked = loader === 'vanilla' || loader === 'optifine'
   // Modpacks and datapacks are never blocked: packs build their own Space and
@@ -118,8 +120,15 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
     setResults([])
     setTotal(0)
     setSearchError(null)
+    if (blocked) {
+      // Invalidate any search still in flight so its hits cannot land on a
+      // tab that is not allowed to show them.
+      searchIdRef.current += 1
+      setLoading(false)
+      return
+    }
     doSearch(query, sort, 0)
-  }, [doSearch, sort, kind, source, versionFilter, showAllVersions]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [doSearch, sort, kind, source, versionFilter, showAllVersions, blocked]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onQueryChange = (event) => {
     const value = event.target.value
@@ -229,7 +238,7 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
 
   const confirmDatapackWorld = async (world) => {
     const { hit } = datapackPick
-    setDatapackPick(null)
+    closePick()
     installContentItem('datapack', hit, world)
   }
 
@@ -377,8 +386,8 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
       )}
 
       {datapackPick && createPortal(
-        <div className="modal-backdrop" onClick={() => setDatapackPick(null)}>
-          <div className="confirm-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className={`modal-backdrop ${pickClosing ? 'closing' : ''}`} onClick={closePick}>
+          <div className={`confirm-card ${pickClosing ? 'closing' : ''}`} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <div className="confirm-title">Where should “{datapackPick.hit.title}” go?</div>
             <div className="confirm-text">Data packs live inside a world. Pick one — or keep it in this Space's library for later.</div>
             <div className="datapack-choices">
@@ -388,7 +397,7 @@ export default function ModsBrowser({ mcVersion, loader, spacesModList = [], onP
               ))}
             </div>
             <div className="confirm-actions">
-              <button className="btn btn-ghost" onClick={() => setDatapackPick(null)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={closePick}>Cancel</button>
             </div>
           </div>
         </div>,

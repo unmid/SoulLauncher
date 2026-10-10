@@ -239,6 +239,24 @@ pub const EXPORT_MAGIC: &str = "soul-space/1";
 /// Older exports written by Orbit Launcher builds still load.
 pub const LEGACY_EXPORT_MAGIC: &str = "orbit-space/1";
 
+/// Split a stored mod id into a shareable (source, project) pair, or None
+/// when it cannot be re-downloaded by an importer (local uploads, Soul
+/// Client bundle files, malformed ids). Only the same values
+/// `validate_import` accepts may be written to an export.
+fn shareable_mod_id(raw: &str) -> Option<(&str, &str)> {
+    let (source, id) = match raw.split_once(':') {
+        Some((s, id)) => (s, id),
+        None => ("modrinth", raw),
+    };
+    let valid = (source == "modrinth" || source == "curseforge")
+        && !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    valid.then_some((source, id))
+}
+
 pub fn export_space_json(space: &Space) -> ExportedSpace {
     ExportedSpace {
         format: EXPORT_MAGIC.into(),
@@ -251,23 +269,17 @@ pub fn export_space_json(space: &Space) -> ExportedSpace {
         mods: space
             .mods
             .iter()
-            .map(|m| {
-                let mut parts = m.project_id.splitn(2, ':');
-                let (source, id) = match (parts.next(), parts.next()) {
-                    (Some(s), Some(id)) if s == "modrinth" || s == "curseforge" => {
-                        (s.to_string(), id.to_string())
-                    }
-                    _ => ("modrinth".to_string(), m.project_id.clone()),
-                };
-                ExportMod {
-                    source,
-                    project_id: id,
+            .filter_map(|m| {
+                let (source, id) = shareable_mod_id(&m.project_id)?;
+                Some(ExportMod {
+                    source: source.to_string(),
+                    project_id: id.to_string(),
                     title: m.title.chars().take(80).collect(),
                     kind: match m.kind.as_str() {
                         "resourcepack" | "shader" | "datapack" => m.kind.clone(),
                         _ => "mod".to_string(),
                     },
-                }
+                })
             })
             .collect(),
         ram_gb: space.ram_gb,
@@ -348,5 +360,84 @@ fn ok_version(s: &str) -> Result<(), String> {
 fn valid_color(s: &str) -> bool {
     let s = s.strip_prefix('#').unwrap_or(s);
     s.len() == 6 && s.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_space(mods: Vec<SpaceMod>) -> Space {
+        Space {
+            id: "space-1".into(),
+            name: "Test Space".into(),
+            icon: "rocket".into(),
+            color: "#5ac8fa".into(),
+            mc_version: "1.21.1".into(),
+            loader: "fabric".into(),
+            loader_version: None,
+            installed_version_id: None,
+            mods,
+            created_at: 0,
+            last_played: None,
+            ram_gb: None,
+            category_id: None,
+            shortcut: None,
+        }
+    }
+
+    fn mod_record(project_id: &str, kind: &str) -> SpaceMod {
+        SpaceMod {
+            project_id: project_id.into(),
+            title: "Some Mod".into(),
+            icon_url: String::new(),
+            version_number: String::new(),
+            file_name: "some-mod.jar".into(),
+            kind: kind.into(),
+            world: None,
+        }
+    }
+
+    #[test]
+    fn export_roundtrips_through_validate_import() {
+        let space = test_space(vec![
+            mod_record("modrinth:sodium", "mod"),
+            mod_record("curseforge:12345", "resourcepack"),
+            // Local uploads and Soul Client bundle files cannot be
+            // re-downloaded by an importer and must be skipped instead of
+            // producing an unimportable file.
+            mod_record("local:my-mod.jar", "mod"),
+            mod_record("soul:26.2:fps-mod.jar", "mod"),
+        ]);
+        let raw = serde_json::to_string(&export_space_json(&space)).unwrap();
+        let parsed = validate_import(&raw).expect("export must validate");
+        assert_eq!(parsed.mods.len(), 2);
+        assert_eq!(parsed.mods[0].source, "modrinth");
+        assert_eq!(parsed.mods[0].project_id, "sodium");
+        assert_eq!(parsed.mods[1].source, "curseforge");
+        assert_eq!(parsed.mods[1].project_id, "12345");
+        assert_eq!(parsed.mods[1].kind, "resourcepack");
+    }
+
+    #[test]
+    fn export_treats_bare_ids_as_modrinth() {
+        let space = test_space(vec![mod_record("abc123", "mod")]);
+        let raw = serde_json::to_string(&export_space_json(&space)).unwrap();
+        let parsed = validate_import(&raw).unwrap();
+        assert_eq!(parsed.mods.len(), 1);
+        assert_eq!(parsed.mods[0].source, "modrinth");
+        assert_eq!(parsed.mods[0].project_id, "abc123");
+    }
+
+    #[test]
+    fn export_drops_malformed_ids() {
+        let space = test_space(vec![
+            mod_record("modrinth:", "mod"),
+            mod_record("modrinth:../evil", "mod"),
+            mod_record("", "mod"),
+        ]);
+        let raw = serde_json::to_string(&export_space_json(&space)).unwrap();
+        let parsed = validate_import(&raw).expect("even an empty export must validate");
+        assert!(parsed.mods.is_empty());
+    }
 }
 

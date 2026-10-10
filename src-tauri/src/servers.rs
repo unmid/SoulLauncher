@@ -292,7 +292,7 @@ pub fn parse_server_list(raw: &str) -> Vec<RemoteServer> {
         let port = item
             .get("port")
             .and_then(|x| x.as_u64())
-            .map(|p| p as u16)
+            .and_then(|p| u16::try_from(p).ok().filter(|p| *p > 0))
             .or(Some(embedded_port));
         out.push(RemoteServer {
             name,
@@ -374,5 +374,20 @@ mod tests {
         let (h, p) = split_host_port("2001:db8::1", 25565);
         assert_eq!(h, "2001:db8::1");
         assert_eq!(p, 25565);
+    }
+
+    #[test]
+    fn parse_list_ignores_out_of_range_ports() {
+        let raw = r#"{"servers":[
+            {"name":"TooBig","ip":"play.big.gg","port":70000},
+            {"name":"Zero","ip":"play.zero.gg","port":0},
+            {"name":"Good","ip":"play.good.gg","port":25566}
+        ]}"#;
+        let list = parse_server_list(raw);
+        assert_eq!(list.len(), 3);
+        // invalid ports fall back to the default, never wrap into garbage
+        assert_eq!(list[0].port, Some(25565));
+        assert_eq!(list[1].port, Some(25565));
+        assert_eq!(list[2].port, Some(25566));
     }
 }

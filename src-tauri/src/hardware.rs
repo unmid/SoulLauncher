@@ -150,7 +150,9 @@ pub fn apply_options_txt(space_dir: &PathBuf, mode: &str, render_distance: u32) 
     let managed: Vec<(String, String)> = managed
         .into_iter()
         .map(|(k, v)| {
-            if k == "renderDistance" && mode == "balanced" {
+            // The user's render-distance setting wins for every preset; the
+            // hardcoded values above are only fallbacks.
+            if k == "renderDistance" {
                 (k.to_string(), rd.clone())
             } else {
                 (k.to_string(), v.to_string())
@@ -170,4 +172,37 @@ pub fn apply_options_txt(space_dir: &PathBuf, mode: &str, render_distance: u32) 
         .map(|(k, v)| format!("{k}:{v}\n"))
         .collect();
     std::fs::write(&path, out).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("soul-hw-{tag}-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn presets_use_the_configured_render_distance() {
+        for mode in ["balanced", "performance"] {
+            let dir = temp_dir(mode);
+            std::fs::write(dir.join("options.txt"), "fov:70.0\nrenderDistance:12\n").unwrap();
+            apply_options_txt(&dir, mode, 5).unwrap();
+            let raw = std::fs::read_to_string(dir.join("options.txt")).unwrap();
+            assert!(raw.contains("renderDistance:5"), "{mode} ignored the setting: {raw}");
+            assert!(raw.contains("fov:70.0"), "{mode} must keep unmanaged keys");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+
+    #[test]
+    fn unknown_presets_do_nothing() {
+        let dir = temp_dir("off");
+        std::fs::write(dir.join("options.txt"), "fov:70.0\n").unwrap();
+        apply_options_txt(&dir, "off", 5).unwrap();
+        assert_eq!(std::fs::read_to_string(dir.join("options.txt")).unwrap(), "fov:70.0\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

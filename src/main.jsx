@@ -29,7 +29,7 @@ class ShellErrorBoundary extends React.Component {
       <div className="app">
         <aside className="sidenav">
           <div className="sidenav-brand" title="Soul Launcher" onClick={() => window.location.reload()}>
-            <span className="brand-badge"><img src="./icons/logo.png" width="26" height="26" alt="Soul" draggable={false} /></span>
+            <span className="brand-badge"><img src="./icons/logo.png" width="26" height="26" alt="Soul Launcher" draggable={false} /></span>
             <span className="brand-word">Soul</span>
           </div>
         </aside>
@@ -43,7 +43,7 @@ class ShellErrorBoundary extends React.Component {
                   Your Spaces and worlds are untouched — this is only a display hiccup.
                   {this.state.detail ? ` (${this.state.detail.slice(0, 120)})` : ''}
                 </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <div className="btn-row" style={{ marginTop: 8 }}>
                   <button className="btn btn-primary" onClick={() => window.location.reload()}>Reload launcher</button>
                   <button className="btn btn-secondary" onClick={() => this.setState({ crashed: false, detail: '' })}>Try this page again</button>
                 </div>

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { LOADER_META, LoaderMark, SpaceIcon, IconPlay, IconEdit, IconCopy, IconFolder, IconClock, IconShare, IconMore, IconWarn, IconExternal, IconTrash } from './icons.jsx'
+import { LOADER_META, LOADER_COLORS, LoaderMark, SpaceIcon, IconPlay, IconEdit, IconCopy, IconFolder, IconClock, IconShare, IconMore, IconWarn, IconExternal, IconTrash } from './icons.jsx'
 import { api, saveFileDialog } from './api.js'
 import { progressDetail } from './App.jsx'
+import { useExit } from './useExit.js'
 
 export function progressPercent(p) {
   if (!p || !p.total || p.total === 0) return null
@@ -16,6 +17,7 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
   const [menuAnchor, setMenuAnchor] = useState(null)
   const menuButtonRef = useRef(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const { closing: confirmClosing, close: closeConfirm } = useExit(() => setConfirmDelete(false))
   const meta = LOADER_META[space.loader] || LOADER_META.vanilla
   const Mark = LoaderMark[space.loader] || LoaderMark.vanilla
 
@@ -117,7 +119,7 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
   }
 
   const doDelete = async () => {
-    setConfirmDelete(false)
+    closeConfirm()
     try {
       await api.deleteSpace(space.id, true)
       onDeleted()
@@ -130,7 +132,7 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
   return (
     <div
       className={`space-card ${running ? 'space-card-running' : ''} ${draggable ? 'space-card-draggable' : ''}`}
-      style={{ '--space-color': space.color }}
+      style={{ '--space-color': space.color, '--loader-color': LOADER_COLORS[space.loader] || 'var(--accent)' }}
       draggable={draggable}
       onDragStart={(e) => {
         if (!draggable) return
@@ -168,7 +170,10 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
         )}
       </div>
 
-      <div className="space-name">{space.name}</div>
+      <div className="space-name-row">
+        <span className="space-dot" title="Space accent color" />
+        <div className="space-name">{space.name}</div>
+      </div>
       <div className="space-tags">
         <span className="tag tag-loader">
           <Mark size={15} /> {meta.label}{space.loaderVersion ? ' ' + space.loaderVersion : ''}
@@ -211,13 +216,13 @@ export default function SpaceCard({ space, progress, onPlay, onEdit, onChanged, 
       )}
 
       {confirmDelete && createPortal(
-        <div className="confirm-pop" onClick={() => setConfirmDelete(false)}>
-          <div className="confirm-card" role="dialog" aria-modal="true" aria-label={`Delete ${space.name}`} onClick={(e) => e.stopPropagation()}>
+        <div className={`confirm-pop ${confirmClosing ? 'closing' : ''}`} onClick={closeConfirm}>
+          <div className={`confirm-card ${confirmClosing ? 'closing' : ''}`} role="dialog" aria-modal="true" aria-label={`Delete ${space.name}`} onClick={(e) => e.stopPropagation()}>
             <div className="confirm-icon warn"><IconWarn size={28} /></div>
             <div className="confirm-title">Delete “{space.name}”?</div>
             <div className="confirm-text">Worlds, mods and settings inside this Space will be gone forever.</div>
             <div className="confirm-actions">
-              <button className="btn" autoFocus onClick={() => setConfirmDelete(false)}>Keep it</button>
+              <button className="btn" autoFocus onClick={closeConfirm}>Keep it</button>
               <button className="btn btn-danger" onClick={doDelete}>Delete</button>
             </div>
           </div>

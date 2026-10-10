@@ -165,9 +165,14 @@ pub fn plan_from_mrpack(bytes: &[u8]) -> Result<PackPlan, String> {
             size: f.get("fileSize").and_then(|v| v.as_u64()).unwrap_or(0),
         });
     }
-    if files.is_empty() {
+if files.is_empty() {
         return Err("This pack lists no downloadable files".into());
     }
+
+    // Modrinth packs carry their configs/mods in `overrides/` exactly like
+    // CurseForge zips; it must be merged into the Space or bundled content
+    // (custom Soul Client mods, configs) silently disappears.
+    let overrides_dir = extract_tree_to_temp(&mut arch, "overrides/")?;
 
     Ok(PackPlan {
         name,
@@ -176,7 +181,7 @@ pub fn plan_from_mrpack(bytes: &[u8]) -> Result<PackPlan, String> {
         loader,
         loader_version,
         files,
-        overrides_dir: None, // .mrpack keeps configs inside listed files
+        overrides_dir,
     })
 }
 
@@ -346,9 +351,14 @@ async fn resolve_cf_file(
         .replace('\\', "/");
     let file_name = safe_rel_path(&file_name).ok_or("Bad file name in pack")?;
 
-    let url = match data.get("downloadUrl").and_then(|v| v.as_str()) {
+let url = match data.get("downloadUrl").and_then(|v| v.as_str()) {
         Some(u) if !u.is_empty() && u.starts_with("https://") => u.to_string(),
-        _ => format!("{CURSEFORGE}/mods/{project_id}/files/{file_id}/download"),
+        // The raw API file route needs the x-api-key header, which the
+        // downloader does not send. Resolve the real CDN link instead (and
+        // fail cleanly when CurseForge blocks distribution).
+        _ => crate::remote::cf_download_url(http, &project_id.to_string(), file_id)
+            .await
+            .map_err(|_| "CurseForge blocked this file's download".to_string())?,
     };
 
     // Manifests don't label folders; the extension is the convention packs use.
@@ -378,25 +388,33 @@ async fn resolve_cf_file(
 /// Copy `<prefix>…` members of the archive into a fresh temp directory so the
 /// caller can merge them into the Space once downloads succeed.
 fn extract_tree_to_temp(arch: &mut MemZip<'_>, prefix: &str) -> Result<Option<PathBuf>, String> {
-    let names: Vec<String> = arch
-        .file_names()
-        .filter_map(|n| n.strip_prefix(prefix).and_then(safe_rel_path))
-        .collect();
-    if names.is_empty() {
+    // Collect by index: archive member names are stored verbatim (directory
+    // entries keep their trailing '/'), while `safe_rel_path` normalizes them.
+    // A by_name lookup with the normalized path would miss every directory.
+    let mut entries: Vec<(String, String, bool)> = Vec::new();
+    for i in 0..arch.len() {
+        let Some(raw_name) = arch.name_for_index(i).map(str::to_string) else { continue };
+        // Zips written by .NET/Windows tools may use `\` separators; match on
+        // the normalized name but read the entry back by its original name.
+        let normalized = raw_name.replace('\\', "/");
+        let Some(rest) = normalized.strip_prefix(prefix) else { continue };
+        let Some(rel) = safe_rel_path(rest) else { continue };
+        let is_dir = arch.by_index(i).map(|f| f.is_dir()).unwrap_or(false);
+        entries.push((raw_name, rel, is_dir));
+    }
+    if entries.is_empty() {
         return Ok(None);
     }
     let dir = std::env::temp_dir().join(format!("soul-pack-{}", uuid::Uuid::new_v4()));
-    for rel in names {
-        let mut f = arch
-            .by_name(&format!("{prefix}{rel}"))
-            .map_err(|e| e.to_string())?;
+    for (name, rel, is_dir) in entries {
         let dest = dir.join(&rel);
-        if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        if f.is_dir() {
+        if is_dir {
             std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
             continue;
+        }
+        let mut f = arch.by_name(&name).map_err(|e| e.to_string())?;
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         let mut out = std::fs::File::create(&dest).map_err(|e| e.to_string())?;
         std::io::copy(&mut f, &mut out).map_err(|e| e.to_string())?;
@@ -636,10 +654,125 @@ mod tests {
             ],
             overrides_dir: None,
         };
-        let recs = records_for_plan(&plan);
+let recs = records_for_plan(&plan);
         assert_eq!(recs[0].kind, "mod");
         assert_eq!(recs[1].kind, "resourcepack");
         assert_eq!(recs[2].kind, "shader");
         assert!(recs[0].project_id.starts_with("local:"));
+    }
+
+    #[test]
+    fn cf_overrides_with_directory_entries_extract() {
+        use std::io::Write as _;
+
+        // Real CurseForge zips list directories as their own entries with a
+        // trailing '/'. Those entries used to abort the whole extraction.
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut buf);
+            let opts = zip::write::SimpleFileOptions::default();
+            writer.add_directory("overrides/config/", opts).unwrap();
+            writer.start_file("overrides/config/app.ini", opts).unwrap();
+            writer.write_all(b"x=1").unwrap();
+            writer.start_file("overrides/plain.txt", opts).unwrap();
+            writer.write_all(b"hi").unwrap();
+            writer.finish().unwrap();
+        }
+        let bytes = buf.into_inner();
+        let mut archive = open_zip(&bytes).unwrap();
+        let tree = extract_tree_to_temp(&mut archive, "overrides/")
+            .unwrap()
+            .expect("overrides tree");
+        assert_eq!(std::fs::read_to_string(tree.join("config").join("app.ini")).unwrap(), "x=1");
+        assert_eq!(std::fs::read_to_string(tree.join("plain.txt")).unwrap(), "hi");
+        let _ = std::fs::remove_dir_all(&tree);
+    }
+
+    #[test]
+    fn mrpack_overrides_are_extracted() {
+        use std::io::Write as _;
+
+        // Modrinth packs keep configs and bundled jars in overrides/; the
+        // plan must carry them or they silently disappear on install.
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut buf);
+            let opts = zip::write::SimpleFileOptions::default();
+            writer.add_directory("overrides/config/", opts).unwrap();
+            writer.start_file("overrides/config/soul.txt", opts).unwrap();
+            writer.write_all(b"soul").unwrap();
+            writer.start_file("modrinth.index.json", opts).unwrap();
+            writer
+                .write_all(
+                    br#"{
+                        "formatVersion": 1, "game": "minecraft", "versionId": "1",
+                        "name": "Soul Test",
+                        "files": [{
+                            "path": "mods/a.jar",
+                            "hashes": {"sha1": "abc", "sha512": "def"},
+                            "downloads": ["https://example.com/a.jar"],
+                            "fileSize": 1
+                        }],
+                        "dependencies": {"minecraft": "1.21.1", "fabric-loader": "0.19.5"}
+                    }"#,
+                )
+                .unwrap();
+            writer.finish().unwrap();
+        }
+        let bytes = buf.into_inner();
+        let plan = plan_from_mrpack(&bytes).unwrap();
+        assert_eq!(plan.mc_version, "1.21.1");
+        assert_eq!(plan.loader, "fabric");
+        assert_eq!(plan.files.len(), 1);
+        let dir = plan.overrides_dir.clone().expect("overrides extracted");
+        assert_eq!(std::fs::read_to_string(dir.join("config").join("soul.txt")).unwrap(), "soul");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn generated_soul_mrpack_parses() {
+        // Guards the shipped Soul Client packs: if the packaging script
+        // changes shape, this fails before users ever see "not a modpack".
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("client")
+            .join("soul-client")
+            .join("Soul-Client-1.21.1.mrpack");
+        let Ok(bytes) = std::fs::read(&path) else { return };
+        let plan = plan_from_mrpack(&bytes)
+            .unwrap_or_else(|e| panic!("generated Soul pack must parse: {e}"));
+        assert_eq!(plan.mc_version, "1.21.1");
+        assert!(plan.files.len() >= 18, "expected the curated mod list, got {}", plan.files.len());
+        let dir = plan.overrides_dir.clone().expect("custom mods are bundled");
+        assert!(dir.join("mods").is_dir());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn extract_tree_rejects_path_climbs() {
+        use std::io::Write as _;
+
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut buf);
+            let opts = zip::write::SimpleFileOptions::default();
+            writer.start_file("overrides/../../evil.txt", opts).unwrap();
+            writer.write_all(b"nope").unwrap();
+            writer.start_file("overrides/ok.txt", opts).unwrap();
+            writer.write_all(b"fine").unwrap();
+            writer.finish().unwrap();
+        }
+        let bytes = buf.into_inner();
+        let mut archive = open_zip(&bytes).unwrap();
+        let tree = extract_tree_to_temp(&mut archive, "overrides/")
+            .unwrap()
+            .expect("tree with the safe file only");
+        let mut names: Vec<String> = std::fs::read_dir(&tree)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, vec!["ok.txt".to_string()]);
+        let _ = std::fs::remove_dir_all(&tree);
     }
 }

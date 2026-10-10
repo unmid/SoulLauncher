@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "soulhud",
+  "version": "${version}",
+  "name": "Soul HUD",
+  "description": "A minimal Soul Client HUD: FPS, coordinates and ping, toggled with a keybind.",
+  "authors": [
+    "Soul Client"
+  ],
+  "contact": {
+    "homepage": "https://github.com/unmid/SoulLauncher"
+  },
+  "license": "GPL-3.0-only",
+  "icon": "assets/soulhud/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.soulclient.hud.SoulHud"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "${mc}",
+    "java": ">=21"
+  }
+}

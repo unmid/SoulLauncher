@@ -76,7 +76,7 @@ function SpacePicker({ spaces, selectedSpace, onSelect, onNew }) {
                 className={`dock-pop-row ${selectedSpace?.id === space.id ? 'selected' : ''}`}
                 onClick={() => { onSelect(space.id); setOpen(false) }}>
                 <span className="dock-pop-icon" style={{ '--c': space.color }}><SpaceIcon name={space.icon} size={24} /></span>
-                <span style={{ flex: 1, minWidth: 0 }}>
+                <span className="dock-pop-text">
                   <span className="dock-pop-name">{space.name}</span>
                   <span className="dock-pop-meta"><M size={16} /> {LOADER_META[space.loader]?.label || space.loader} · {space.mcVersion}</span>
                 </span>
@@ -107,8 +107,8 @@ class PickerBoundary extends Component {
   render() {
     if (this.state.bad) {
       return (
-        <button className="dock-select" onClick={this.props.onNew} style={{ justifyContent: 'center', padding: 14 }}>
-          <span className="dock-select-text" style={{ alignItems: 'center' }}>
+        <button className="dock-select dock-select-empty" onClick={this.props.onNew}>
+          <span className="dock-select-text">
             <span className="dock-select-name">Pick a Space in the Library</span>
             <span className="dock-select-meta">Picker recovered from an error</span>
           </span>
@@ -132,7 +132,6 @@ export default function HomePage({ settings, spaces, selectedSpace, selectSpace,
     } catch (e) { notify(String(e), 'error') }
     finally { setPackBusy(false) }
   }
-  const SoulMark = LoaderMark.soul || LoaderMark.vanilla
   const heroProgress = selectedSpace ? progress[selectedSpace.id] : null
   const busy = heroProgress && BUSY_STAGES.includes(heroProgress.stage)
   const started = heroProgress?.stage === 'running'
@@ -151,16 +150,15 @@ export default function HomePage({ settings, spaces, selectedSpace, selectSpace,
       <HomeBackground enabled={settings?.wallpapers !== false} />
       <div className="page-inner home-content">
         {spaces.length === 0 ? (
-          <section className="hero-card" style={{ maxWidth: 600, margin: '6px auto 0', width: '100%' }}>
+          <section className="hero-card hero-empty-card">
             <div className="hero-empty">
               <div className="hero-empty-icon"><IconRocket size={30} /></div>
               <h2>Set up your first Space</h2>
               <p>Pick a version, choose Soul Client or a loader, press Play. About a minute.</p>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div className="btn-row">
                 <button className="btn btn-primary btn-big" onClick={() => openWizard('new')}><IconRocket size={17} /> New Space</button>
-                <button className="btn btn-secondary btn-big" onClick={() => openWizard({ mode: 'new', loader: 'soul' })}><SoulMark size={20} /> Get Soul Client</button>
               </div>
-              <button className="btn btn-ghost btn-small" style={{ marginTop: 12 }} onClick={importModpack} disabled={packBusy}>
+              <button className="btn btn-ghost btn-small" onClick={importModpack} disabled={packBusy}>
                 {packBusy ? <span className="mini-spinner" /> : 'Or install from a modpack file'}
               </button>
             </div>
@@ -184,8 +182,8 @@ export default function HomePage({ settings, spaces, selectedSpace, selectSpace,
               </button>
             </>
           ) : (
-            <button className="dock-select" onClick={() => openWizard('new')} style={{ justifyContent: 'center', padding: 14 }}>
-              <span className="dock-select-text" style={{ alignItems: 'center' }}>
+            <button className="dock-select dock-select-empty" onClick={() => openWizard('new')}>
+              <span className="dock-select-text">
                 <span className="dock-select-name">Create your first Space</span>
                 <span className="dock-select-meta">One minute setup</span>
               </span>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api.js'
-import { IconPlayers, IconSignal, IconServer, IconRefresh, IconCopy, IconCheck, IconBolt } from './icons.jsx'
+import { IconPlayers, IconSignal, IconServer, IconRefresh, IconCopy, IconCheck, IconBolt, IconPlay, IconSearch } from './icons.jsx'
 
 function pingKey(server) {
   return splitServerAddress(server).key
@@ -62,18 +62,19 @@ function readCache() {
 function ServersBackdrop() {
   return (
     <div className="servers-bg" aria-hidden="true">
-      <div className="servers-bg-fallback" style={{ backgroundImage: 'url(./wallpapers/w2.png)' }} />
+      <div className="servers-bg-fallback" style={{ backgroundImage: 'url(./wallpapers/soul-client.jpg)' }} />
       <div className="servers-bg-scrim" />
     </div>
   )
 }
 
-export default function ServersPage({ notify }) {
+export default function ServersPage({ notify, play, selectedSpace, navigate }) {
   const [servers, setServers] = useState(null) // null = loading
   const [pings, setPings] = useState({})
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false)
   const [online, setOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
   const [copied, setCopied] = useState(null) // pingKey of the row just copied
+  const [query, setQuery] = useState('')
   const pingRunRef = useRef(0)
 
   const pingOne = useCallback((server, runId) => {
@@ -166,11 +167,18 @@ export default function ServersPage({ notify }) {
     wasOnlineRef.current = online
   }, [online, load])
 
+  const filtered = useMemo(() => {
+    if (!servers) return []
+    const q = query.trim().toLowerCase()
+    if (!q) return servers
+    return servers.filter((s) => `${s.name} ${s.motd} ${s.ip} ${s.category}`.toLowerCase().includes(q))
+  }, [servers, query])
+
   // group by category, sponsored first inside each group
   const groups = useMemo(() => {
-    if (!servers) return []
+    if (!filtered.length) return []
     const map = new Map()
-    for (const s of servers) {
+    for (const s of filtered) {
       const cat = s.category?.trim() || 'Servers'
       if (!map.has(cat)) map.set(cat, [])
       map.get(cat).push(s)
@@ -179,7 +187,9 @@ export default function ServersPage({ notify }) {
       category,
       items: items.slice().sort((a, b) => (b.sponsored ? 1 : 0) - (a.sponsored ? 1 : 0)),
     }))
-  }, [servers])
+  }, [filtered])
+
+  const onlineCount = useMemo(() => Object.values(pings).filter((p) => p?.online).length, [pings])
 
   const copyAddress = async (s) => {
     const address = serverAddress(s)
@@ -209,6 +219,16 @@ export default function ServersPage({ notify }) {
     }
   }
 
+  const joinServer = (s) => {
+    if (!selectedSpace) {
+      notify('Create or pick a Space first — then Join sends you straight in', 'error')
+      navigate?.('library')
+      return
+    }
+    const { host, port } = splitServerAddress(s)
+    play?.(selectedSpace, { ip: host, port })
+  }
+
   return (
     <div className="page-full">
       <ServersBackdrop />
@@ -216,13 +236,27 @@ export default function ServersPage({ notify }) {
         <div className="content-head">
           <div>
             <h1 className="page-title">Servers</h1>
-            <p className="page-sub">Hand-picked worlds to explore — copy an address and paste it into Minecraft.</p>
+            <p className="page-sub">
+              {selectedSpace ? `Join with “${selectedSpace.name}” in one click, or copy the address into Minecraft.` : 'Copy an address, or pick a Space to join directly from here.'}
+            </p>
           </div>
           <div className="head-actions">
             <button className="btn btn-secondary" onClick={load} disabled={servers === null}>
               <IconRefresh size={15} /> Refresh
             </button>
           </div>
+        </div>
+
+        <div className="servers-toolbar">
+          <div className="search-box"><IconSearch size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search servers by name, address or category…" /></div>
+          <span className="servers-stats">
+            <IconSignal size={13} /> {servers === null ? '…' : `${filtered.length} servers`}
+          </span>
+          {!offline && onlineCount > 0 && (
+            <span className="servers-stats servers-stats-online">
+              <span className="live-dot" /> {onlineCount} online
+            </span>
+          )}
         </div>
 
         {servers === null && (
@@ -263,9 +297,13 @@ export default function ServersPage({ notify }) {
           </div>
         )}
 
+        {servers !== null && servers.length > 0 && filtered.length === 0 && (
+          <div className="server-list-empty">No servers match “{query}”.</div>
+        )}
+
         {groups.map((g) => (
           <section key={g.category} className="server-group">
-            <h2 className="server-group-title">{g.category}</h2>
+            <h2 className="server-group-title">{g.category} <span className="cat-count">{g.items.length}</span></h2>
             <div className="server-list">
               {g.items.map((s) => {
                 const ping = pings[pingKey(s)]
@@ -273,7 +311,7 @@ export default function ServersPage({ notify }) {
                 const motd = s.motd || ping?.motd || ''
                 return (
                   <div key={pingKey(s)} className={`server-row ${s.sponsored ? 'server-row-sponsored' : ''}`}>
-                    <div className="server-icon">
+                    <div className={`server-icon ${!offline && ping?.online ? 'online' : ''}`}>
                       {icon ? <img src={icon} alt="" draggable={false} /> : <IconServer size={26} />}
                     </div>
                     <div className="server-main">
@@ -284,6 +322,7 @@ export default function ServersPage({ notify }) {
                       {motd && <div className="server-motd">{motd}</div>}
                       <div className="server-meta">
                         <span className="server-ip">{serverAddress(s)}</span>
+                        {s.minVersion && <span className="server-version">MC {s.minVersion}+</span>}
                         {offline ? (
                           <span className="server-ping off"><IconSignal size={12} /> offline</span>
                         ) : ping ? (
@@ -294,7 +333,6 @@ export default function ServersPage({ notify }) {
                                 <IconSignal size={12} /> {ping.pingMs} ms
                               </span>
                               {ping.version && <span className="server-version">{ping.version}</span>}
-                              {s.minVersion && <span className="server-version">MC {s.minVersion}+</span>}
                             </>
                           ) : (
                             <span className="server-ping off"><IconSignal size={12} /> offline</span>
@@ -314,6 +352,14 @@ export default function ServersPage({ notify }) {
                         <IconRefresh size={13} />
                       </button>
                     )}
+                    <button
+                      className={`btn ${selectedSpace ? 'btn-primary' : 'btn-secondary'} server-join-btn`}
+                      onClick={() => joinServer(s)}
+                      disabled={!offline && ping && !ping.online}
+                      title={selectedSpace ? `Launch ${selectedSpace.name} into ${s.name}` : 'Pick a Space first'}
+                    >
+                      <IconPlay size={14} /> Join
+                    </button>
                     <button
                       className={`btn ${copied === pingKey(s) ? 'btn-primary' : 'btn-secondary'} copy-btn`}
                       onClick={() => copyAddress(s)}

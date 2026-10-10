@@ -226,6 +226,11 @@ fn run_hidden_powershell(script: &str) -> Result<(), String> {
     }
 }
 
+/// Escape a value for a single-quoted PowerShell string literal.
+fn ps_quote(s: &str) -> String {
+    s.replace('\'', "''")
+}
+
 #[tauri::command]
 fn pin_space_shortcut(state: State<AppState>, space_id: String) -> Result<String, String> {
     let all = state.spaces();
@@ -236,6 +241,8 @@ fn pin_space_shortcut(state: State<AppState>, space_id: String) -> Result<String
     // The shortcut carries the same icon the Space shows inside the app.
     let icon = icongen::write_space_ico(&state.root, &space.id, &space.icon)
         .unwrap_or_else(|_| exe.clone());
+    // Every interpolated value is single-quote escaped: paths can contain an
+    // apostrophe (C:\Users\O'Brien\...) and would otherwise break the script.
     let ps = format!(
         "$ws = New-Object -ComObject WScript.Shell; \
          $sc = $ws.CreateShortcut('{}'); \
@@ -245,12 +252,12 @@ fn pin_space_shortcut(state: State<AppState>, space_id: String) -> Result<String
          $sc.IconLocation = '{}'; \
          $sc.Description = 'Play {} in Soul Launcher'; \
          $sc.Save()",
-        lnk.display(),
-        exe.display(),
-        space.id,
-        work.display(),
-        icon.display(),
-        space.name.replace('\'', "''"),
+        ps_quote(&lnk.to_string_lossy()),
+        ps_quote(&exe.to_string_lossy()),
+        ps_quote(&space.id),
+        ps_quote(&work.to_string_lossy()),
+        ps_quote(&icon.to_string_lossy()),
+        ps_quote(&space.name),
     );
     run_hidden_powershell(&ps)?;
 
@@ -312,8 +319,17 @@ fn duplicate_space(state: State<AppState>, space_id: String) -> Result<spaces::S
 #[tauri::command]
 fn delete_space(state: State<AppState>, space_id: String, delete_files: bool) -> Result<(), String> {
     let mut all = state.spaces();
+    // A deleted Space must not leave a dead desktop shortcut / icon behind.
+    let shortcut = all
+        .iter()
+        .find(|s| s.id == space_id)
+        .and_then(|s| s.shortcut.clone());
     all.retain(|s| s.id != space_id);
     state.persist_spaces(&all)?;
+    if let Some(path) = shortcut {
+        let _ = std::fs::remove_file(path);
+    }
+    icongen::remove_space_ico(&state.root, &space_id);
     if delete_files {
         let _ = std::fs::remove_dir_all(spaces::space_dir(&state.root, &space_id));
     }
@@ -400,8 +416,8 @@ fn list_categories(state: State<AppState>) -> Vec<spaces::SpaceCategory> {
 }
 
 #[tauri::command]
-fn create_category(state: State<AppState>, name: String, color: String) -> Result<spaces::SpaceCategory, String> {
-    let cat = categories::new_category(&name, &color)?;
+fn create_category(state: State<AppState>, name: String) -> Result<spaces::SpaceCategory, String> {
+    let cat = categories::new_category(&name)?;
     let mut all = spaces::load_categories(&state.root);
     all.push(cat.clone());
     spaces::save_categories(&state.root, &all)?;
@@ -409,7 +425,7 @@ fn create_category(state: State<AppState>, name: String, color: String) -> Resul
 }
 
 #[tauri::command]
-fn rename_category(state: State<AppState>, category_id: String, name: String, color: Option<String>) -> Result<(), String> {
+fn rename_category(state: State<AppState>, category_id: String, name: String) -> Result<(), String> {
     let clean: String = name.chars().filter(|c| !c.is_control()).take(32).collect();
     let clean = clean.trim().to_string();
     if clean.is_empty() {
@@ -418,11 +434,6 @@ fn rename_category(state: State<AppState>, category_id: String, name: String, co
     let mut all = spaces::load_categories(&state.root);
     let slot = all.iter_mut().find(|c| c.id == category_id).ok_or("Category not found")?;
     slot.name = clean;
-    if let Some(c) = color {
-        if c.starts_with('#') && c.len() == 7 {
-            slot.color = c;
-        }
-    }
     spaces::save_categories(&state.root, &all)
 }
 
@@ -458,11 +469,15 @@ fn set_space_category(state: State<AppState>, space_id: String, category_id: Opt
     }
     let clean = category_id.filter(|c| !c.trim().is_empty());
     let mut all = state.spaces();
-    let leaving = {
+    // Leaving OR switching categories must materialize the shared symlinks
+    // first, otherwise the seeder refuses to read a symlinked file and the
+    // Space would silently lose its settings/servers on the way in.
+    let moving = {
         let cur = all.iter().find(|s| s.id == space_id).ok_or("Space not found")?;
-        cur.category_id.is_some() && clean.is_none()
+        let cur_cat = cur.category_id.clone();
+        cur_cat.is_some() && cur_cat.as_deref() != clean.as_deref()
     };
-    if leaving {
+    if moving {
         categories::detach_space(&state.root, &space_id)?;
     }
     let space = all.iter_mut().find(|s| s.id == space_id).ok_or("Space not found")?;

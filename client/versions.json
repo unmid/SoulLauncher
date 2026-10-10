@@ -1,14 +1,54 @@
 {
-  "versions": [
-    {
-      "id": "26.2",
-      "name": "Soul Client 26.2",
-      "mcVersion": "26.2",
-      "loaderVersion": "0.19.5",
-      "zip": "client/version-26.2/soul-client-26-2.zip",
-      "modCount": 24,
-      "released": "2026-09-10",
-      "notes": "Tuned Fabric FPS build with 24 performance, stability, and options mods."
-    }
-  ]
+    "versions":  [
+                     {
+                         "id":  "26.2",
+                         "name":  "Soul Client 26.2",
+                         "mcVersion":  "26.2",
+                         "loaderVersion":  "0.19.5",
+                         "zip":  "client/version-26.2/soul-client-26-2.zip",
+                         "modCount":  24,
+                         "released":  "2026-09-10",
+                         "notes":  "Tuned Fabric FPS build with 24 performance, stability, and options mods."
+                     },
+                     {
+                         "id":  "1.21.1",
+                         "name":  "Soul Client 1.21.1",
+                         "mcVersion":  "1.21.1",
+                         "loaderVersion":  "0.19.5",
+                         "zip":  "client/version-1.21.1/soul-client-1-21-1.zip",
+                         "modCount":  22,
+                         "released":  "2026-09-27",
+                         "notes":  "20 public Modrinth mods and the custom Soul Client mods."
+                     },
+                     {
+                         "id":  "1.21.10",
+                         "name":  "Soul Client 1.21.10",
+                         "mcVersion":  "1.21.10",
+                         "loaderVersion":  "0.19.5",
+                         "zip":  "client/version-1.21.10/soul-client-1-21-10.zip",
+                         "modCount":  20,
+                         "released":  "2026-09-27",
+                         "notes":  "18 public Modrinth mods and the custom Soul Client mods."
+                     },
+                     {
+                         "id":  "1.21.11",
+                         "name":  "Soul Client 1.21.11",
+                         "mcVersion":  "1.21.11",
+                         "loaderVersion":  "0.19.5",
+                         "zip":  "client/version-1.21.11/soul-client-1-21-11.zip",
+                         "modCount":  20,
+                         "released":  "2026-09-27",
+                         "notes":  "18 public Modrinth mods and the custom Soul Client mods."
+                     },
+                     {
+                         "id":  "26.1.2",
+                         "name":  "Soul Client 26.1.2",
+                         "mcVersion":  "26.1.2",
+                         "loaderVersion":  "0.19.5",
+                         "zip":  "client/version-26.1.2/soul-client-26-1-2.zip",
+                         "modCount":  20,
+                         "released":  "2026-09-27",
+                         "notes":  "18 public Modrinth mods and the custom Soul Client mods."
+                     }
+                 ]
 }

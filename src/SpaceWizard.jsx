@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from './api.js'
 import ModsBrowser from './ModsBrowser.jsx'
 import Dropdown from './Dropdown.jsx'
-import { LOADER_META, LoaderMark, SPACE_ICONS, SpaceIcon, SPACE_COLORS, IconCheck, IconSearch, IconX, IconPlus, IconLayers } from './icons.jsx'
+import { useExit } from './useExit.js'
+import { LOADER_META, LOADER_COLORS, LoaderMark, SPACE_ICONS, SpaceIcon, SPACE_COLORS, IconCheck, IconSearch, IconX, IconPlus, IconLayers } from './icons.jsx'
 
 const STEPS = ['Game', 'Software', 'Content', 'Create']
 const VERSION_CACHE_KEY = 'soul.versions.v1'
@@ -39,9 +40,9 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
   const [loaderBusy, setLoaderBusy] = useState(false)
   const [loaderFailed, setLoaderFailed] = useState(false)
   const [manualLoader, setManualLoader] = useState('')
-  const [soulBuilds, setSoulBuilds] = useState([])
-  const [soulVersion, setSoulVersion] = useState(null)
-  const [soulFailed, setSoulFailed] = useState(false)
+  // OneClient (Modrinth client pack): resolves its own Minecraft version.
+  const [oneVersions, setOneVersions] = useState([])
+  const [oneVersion, setOneVersion] = useState(null)
 
   // --- content + identity ---
   const [picked, setPicked] = useState([])
@@ -53,6 +54,7 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
   const [newCatName, setNewCatName] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
+  const { closing, close } = useExit(onClose, 180)
 
   const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
 
@@ -71,26 +73,16 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
     api.listInstalledVersions().then((v) => setInstalled(new Set(v))).catch(() => {})
     api.listCategories().then(setCategories).catch(() => {})
     if (existing) return
-    api.listSoulClients()
+    api.listModpackMcVersions('oneclient-modpack')
       .then((list) => {
-        const builds = Array.isArray(list) ? list : []
-        setSoulBuilds(builds)
-        if (builds.length > 0) setSoulVersion((cur) => cur || builds[0].id)
-        else setSoulFailed(true)
+        setOneVersions(list)
+        if (list.length) setOneVersion((cur) => cur || list[0])
       })
-      .catch(() => setSoulFailed(true))
+      .catch(() => setOneVersions([]))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (existing || initialLoader !== 'soul' || soulBuilds.length === 0) return
-    setLoader('soul')
-    setIcon('soul')
-    setColor('#5eead4')
-    if (!soulVersion) setSoulVersion(soulBuilds[0].id)
-  }, [existing, initialLoader, soulBuilds]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!mcVersion || loader === 'vanilla' || loader === 'soul') {
+    if (!mcVersion || loader === 'vanilla' || loader === 'oneclient') {
       setLoaderVersions([]); setLoaderVersion(null); setLoaderBusy(false); setLoaderFailed(false)
       return
     }
@@ -110,12 +102,15 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
   }, [mcVersion, loader]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e) => {
+      // Never abandon a Space that is mid-install.
+      if (e.key !== 'Escape' || saving) return
+      close()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [close, saving])
 
-  const selectedSoul = useMemo(() => soulBuilds.find((b) => b.id === soulVersion) || null, [soulBuilds, soulVersion])
   const kindOf = (v) => String(v.kind || v.type || '').toLowerCase().replace(/-/g, '_')
   const filteredVersions = useMemo(() => {
     if (!versions) return []
@@ -126,33 +121,31 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
     return list.slice().sort((a, b) => Number(installed.has(b.id)) - Number(installed.has(a.id)))
   }, [versions, versionFilter, versionKind, installed])
 
-  const needLoaderVer = loader !== 'vanilla' && loader !== 'soul'
+  const needLoaderVer = loader !== 'vanilla' && loader !== 'oneclient'
   const effLoaderVersion = loaderVersion || manualLoader.trim() || null
+  // "+ New category…" picked but not named yet — Create must not silently drop it.
+  const newCatPending = categoryId === '__new__' && !newCatName.trim()
 
   const stepHint = [
     !mcVersion ? 'Pick a Minecraft version to continue' : '',
-    loader === 'soul' && !selectedSoul ? 'Soul Client needs internet — pick another software for now' : '',
+    loader === 'oneclient' && !oneVersion ? 'Checking OneClient builds…' : '',
     '',
-    !name.trim() ? 'Give your Space a name to finish' : '',
+    !name.trim() ? 'Give your Space a name to finish' : newCatPending ? 'Name the new category, or pick “No category”' : '',
   ]
   const canNext =
     step === 0 ? !!mcVersion :
-    step === 1 ? !(loader === 'soul' && !selectedSoul) :
+    step === 1 ? !(loader === 'oneclient' && !oneVersion) :
     step === 2 ? true :
-    name.trim().length > 0
+    name.trim().length > 0 && !newCatPending
 
   const chooseLoader = (key) => {
     setLoader(key)
     setLoaderVersion(null)
     setManualLoader('')
-    if (key === 'soul') {
-      const build = selectedSoul || soulBuilds[0] || null
-      if (build) {
-        setSoulVersion(build.id)
-        if (build.mcVersion) setMcVersion(build.mcVersion)
-        setIcon('soul')
-        setColor('#5eead4')
-      }
+    // OneClient pins its own Minecraft version, so it corrects step 0.
+    if (key === 'oneclient') {
+      const v = oneVersion || oneVersions[0] || null
+      if (v) { setOneVersion(v); setMcVersion(v) }
     }
   }
 
@@ -160,7 +153,7 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
     const clean = newCatName.trim()
     if (!clean) return
     try {
-      const cat = await api.createCategory(clean, '#5eead4')
+      const cat = await api.createCategory(clean)
       setCategories((c) => [...c, cat])
       setCategoryId(cat.id)
       setNewCatName('')
@@ -172,24 +165,46 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
   const unpick = (id) => setPicked((m) => m.filter((x) => x.projectId !== id))
 
   const save = async () => {
+    if (saving) return
     setSaving(true)
     try {
-      if (loader === 'soul' && !isEdit) {
-        if (!selectedSoul) throw new Error('Pick a Soul Client build first.')
-        setSaveMsg(`Installing ${selectedSoul.name}…`)
-        const built = await api.installSoulClient(selectedSoul.id)
+      // A typed-but-not-added "+ New category…" draft becomes a real category
+      // here, so finishing Create can never drop it on the floor.
+      let finalCategoryId = categoryId && categoryId !== '__new__' ? categoryId : null
+      if (categoryId === '__new__') {
+        const clean = newCatName.trim()
+        if (clean) {
+          try {
+            const cat = await api.createCategory(clean)
+            setCategories((c) => [...c, cat])
+            finalCategoryId = cat.id
+          } catch (e) { notify(`Couldn't create the category: ${String(e).slice(0, 80)}`, 'error') }
+        }
+      }
+      if (loader === 'oneclient' && !isEdit) {
+        const target = oneVersion || mcVersion
+        if (!target) throw new Error('Pick a OneClient build first.')
+        setSaveMsg(`Installing OneClient for Minecraft ${target}…`)
+        const built = await api.installModpack('modrinth', 'oneclient-modpack', target)
+        // The pack picks its own identity — apply the name, icon, color and
+        // category the user actually chose on this step instead.
+        try {
+          await api.updateSpace({ ...built, name: name.trim() || built.name, icon, color })
+          if (finalCategoryId) await api.setSpaceCategory(built.id, finalCategoryId)
+        } catch (e) {
+          notify(`Space created, but its look couldn't be applied: ${String(e).slice(0, 80)}`, 'error')
+        }
         onSpaceCreated?.(built.id)
-        notify(`"${built.name}" is being set up — watch its card fill up`)
-        onClose()
+        notify(`"${name.trim() || built.name}" is being set up — watch its card fill up`)
+        close()
         return
       }
-      const finalCategoryId = categoryId && categoryId !== '__new__' ? categoryId : null
       if (isEdit) {
         await api.updateSpace({ ...existing, name: name.trim(), icon, color, mcVersion, loader, loaderVersion: loader === 'vanilla' ? null : effLoaderVersion, categoryId: finalCategoryId })
         await api.setSpaceCategory(existing.id, finalCategoryId).catch(() => {})
         onSaved()
         notify('Space updated')
-        onClose()
+        close()
         return
       }
       setSaveMsg('Creating your Space…')
@@ -213,7 +228,7 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
       if (picked.length > 0) notify(`Space created with ${picked.length} item${picked.length > 1 ? 's' : ''}`)
       else notify('Space created — press Play')
       onSaved()
-      onClose()
+      close()
     } catch (e) {
       notify(String(e), 'error')
       setSaving(false)
@@ -222,14 +237,14 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="wizard" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit Space' : 'New Space'}>
+    <div className={`modal-backdrop ${closing ? 'closing' : ''}`} onClick={saving ? undefined : close}>
+      <div className={`wizard ${closing ? 'closing' : ''}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit Space' : 'New Space'}>
         <div className="wizard-head">
           <div className="wizard-head-text">
             <div className="wizard-title">{isEdit ? 'Edit Space' : 'New Space'}</div>
             <div className="wizard-sub">Step {step + 1} of {STEPS.length} — {STEPS[step]}</div>
           </div>
-          <button className="icon-btn" onClick={onClose} title="Close (Esc)"><IconX size={18} /></button>
+          <button className="icon-btn" onClick={saving ? undefined : close} disabled={saving} title={saving ? 'Working…' : 'Close (Esc)'}><IconX size={18} /></button>
         </div>
 
         <div className="wizard-steps">
@@ -293,36 +308,11 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
 
           {step === 1 && (
             <div className="wizard-page">
-              <button type="button" className={`soul-client-card ${loader === 'soul' ? 'selected' : ''}`} onClick={() => chooseLoader('soul')} disabled={soulFailed && soulBuilds.length === 0} aria-pressed={loader === 'soul'}>
-                <span className="soul-client-mark"><LoaderMark.soul size={32} /></span>
-                <span className="soul-client-text">
-                  <span className="loader-label">Soul Client</span>
-                  <span className="loader-desc">{LOADER_META.soul.desc}</span>
-                  <span className="soul-client-meta">
-                    {soulFailed ? 'Needs internet — pick another software for now' : selectedSoul ? `${selectedSoul.name} · Minecraft ${selectedSoul.mcVersion}` : 'Checking builds…'}
-                  </span>
-                </span>
-                {loader === 'soul' && <span className="version-row-check"><IconCheck size={16} /></span>}
-              </button>
-              {loader === 'soul' && !soulFailed && soulBuilds.length > 0 && (
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label className="field-label">Client build</label>
-                  <Dropdown
-                    value={soulVersion}
-                    onChange={(id) => {
-                      setSoulVersion(id)
-                      const build = soulBuilds.find((b) => b.id === id)
-                      if (build?.mcVersion) setMcVersion(build.mcVersion)
-                    }}
-                    options={soulBuilds.map((b) => ({ value: b.id, label: `${b.name} · Minecraft ${b.mcVersion}`, hint: b.modCount ? `${b.modCount} mods` : undefined }))}
-                  />
-                </div>
-              )}
               <div className="loader-grid">
-                {Object.entries(LOADER_META).filter(([key]) => key !== 'soul').map(([key, meta]) => {
+                {Object.entries(LOADER_META).filter(([key]) => key !== 'soul' && !(isEdit && key === 'oneclient')).map(([key, meta]) => {
                   const Mark = LoaderMark[key] || LoaderMark.vanilla
                   return (
-                    <button key={key} className={`loader-card ${loader === key ? 'selected' : ''}`} onClick={() => chooseLoader(key)}>
+                    <button key={key} className={`loader-card ${loader === key ? 'selected' : ''}`} onClick={() => chooseLoader(key)} style={{ '--loader-color': LOADER_COLORS[key] || 'var(--accent)' }}>
                       <span className="loader-mark"><Mark size={28} /></span>
                       <span className="loader-card-text">
                         <span className="loader-label">{meta.label}</span>
@@ -332,6 +322,21 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
                   )
                 })}
               </div>
+              {loader === 'oneclient' && !isEdit && (
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label className="field-label">OneClient for Minecraft</label>
+                  {oneVersions.length > 0 ? (
+                    <Dropdown
+                      value={oneVersion}
+                      onChange={(id) => { setOneVersion(id); setMcVersion(id) }}
+                      options={oneVersions.map((v, i) => ({ value: v, label: `Minecraft ${v}`, hint: i === 0 ? 'newest' : undefined }))}
+                    />
+                  ) : (
+                    <div className="loading-line"><span className="mini-spinner" /> Checking builds…</div>
+                  )}
+                  <div className="field-hint">The pack installs Fabric and its own mods for this version automatically.</div>
+                </div>
+              )}
               {needLoaderVer && (
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label className="field-label">{LOADER_META[loader]?.label} version <span className="field-optional">— empty = latest</span></label>
@@ -372,7 +377,7 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
               )}
               <ModsBrowser
                 mcVersion={mcVersion}
-                loader={loader === 'soul' ? 'fabric' : loader}
+                loader={loader === 'oneclient' ? 'fabric' : loader}
                 spacesModList={isEdit ? existing.mods : picked}
                 onPick={pick}
                 onUnpick={unpick}
@@ -407,7 +412,7 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
                 />
                 {categoryId === '__new__' && (
                   <div className="wizard-newcat">
-                    <input className="input" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="New category name…" maxLength={32} autoFocus onKeyDown={(e) => { if (e.key === 'Enter') createCategoryInline() }} />
+                    <input className="input" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="New category name…" maxLength={32} autoFocus onKeyDown={(e) => { if (e.key === 'Enter' && !saving) createCategoryInline() }} />
                     <button className="btn btn-secondary btn-small" onClick={createCategoryInline} disabled={!newCatName.trim()}><IconPlus size={14} /> Add</button>
                   </div>
                 )}
@@ -423,12 +428,13 @@ export default function SpaceWizard({ existing = null, initialLoader = null, ini
                 </div>
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
-                <label className="field-label">Color</label>
+                <label className="field-label">Accent color <span className="field-optional">— this Space's identity</span></label>
                 <div className="color-row">
                   {SPACE_COLORS.map((c) => (
-                    <button key={c} className={`color-dot ${color === c ? 'selected' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${c}`} />
+                    <button key={c} className={`color-dot ${color === c ? 'selected' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Accent color ${c}`} />
                   ))}
                 </div>
+                <div className="field-hint">Tints this Space's card, its dot and the Play button so you can spot it at a glance.</div>
               </div>
               <div className="wizard-preview" style={{ '--space-color': color }}>
                 <div className="space-icon"><SpaceIcon name={icon} size={30} /></div>

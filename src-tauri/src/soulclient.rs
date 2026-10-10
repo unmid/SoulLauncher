@@ -49,18 +49,16 @@ pub struct SoulClientVersion {
     pub notes: String,
 }
 
-pub async fn fetch_versions(http: &reqwest::Client, root: &PathBuf) -> Result<Vec<SoulClientVersion>, String> {
-    let raw = crate::remote::fetch_updater_file(http, root, "client/versions.json")
-        .await
-        .ok_or("Couldn't reach the Soul Client list — check your connection and try again")?;
-    let v: Value = serde_json::from_str(&raw).map_err(|_| "The Soul Client list is malformed")?;
-    let arr = v
-        .get("versions")
-        .and_then(|x| x.as_array())
-        .ok_or("The Soul Client list is malformed")?;
+/// Client builds compiled into the binary, so the Soul Client card works
+/// offline and keeps working before a new list is pushed to the live repo.
+const BUNDLED_VERSIONS: &str = include_str!("../../client/versions.json");
+
+/// Strict per-entry parse: one bad entry must never kill the whole list.
+fn parse_versions(raw: &str) -> Vec<SoulClientVersion> {
+    let Ok(v) = serde_json::from_str::<Value>(raw) else { return Vec::new() };
+    let Some(arr) = v.get("versions").and_then(|x| x.as_array()) else { return Vec::new() };
     let mut out = Vec::new();
-    for item in arr.iter().take(16) {
-        // strict per-entry parse: one bad entry must not kill the list
+    for item in arr.iter().take(32) {
         if let Ok(entry) = serde_json::from_value::<SoulClientVersion>(item.clone()) {
             if valid_id(&entry.id)
                 && valid_id(&entry.mc_version)
@@ -71,7 +69,33 @@ pub async fn fetch_versions(http: &reqwest::Client, root: &PathBuf) -> Result<Ve
             }
         }
     }
-    Ok(out)
+    out
+}
+
+fn merge_versions(list: &mut Vec<SoulClientVersion>, extra: Vec<SoulClientVersion>) {
+    for entry in extra {
+        if let Some(slot) = list.iter_mut().find(|x| x.id == entry.id) {
+            *slot = entry; // newer source wins for the same id
+        } else {
+            list.push(entry);
+        }
+    }
+}
+
+pub async fn fetch_versions(http: &reqwest::Client, root: &PathBuf) -> Result<Vec<SoulClientVersion>, String> {
+    // 1. built-in list, 2. a local `client/versions.json` dropped into the
+    // data folder (offline / self-hosted builds), 3. the live repo list.
+    let mut list = parse_versions(BUNDLED_VERSIONS);
+    if let Ok(raw) = std::fs::read_to_string(root.join("client").join("versions.json")) {
+        merge_versions(&mut list, parse_versions(&raw));
+    }
+    if let Some(raw) = crate::remote::fetch_updater_file(http, root, "client/versions.json").await {
+        merge_versions(&mut list, parse_versions(&raw));
+    }
+    if list.is_empty() {
+        return Err("Couldn't reach the Soul Client list — check your connection and try again".into());
+    }
+    Ok(list)
 }
 
 fn valid_id(s: &str) -> bool {
@@ -311,17 +335,26 @@ async fn download_archive(
     let mut stream = resp.bytes_stream();
     let mut seen: u64 = 0;
     emit("files", "Downloading the Soul Client pack…".into(), 0, total);
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| e.to_string())?;
-        seen = seen.saturating_add(chunk.len() as u64);
-        if seen > MAX_ARCHIVE_BYTES {
-            return Err("Client zip is implausibly large".into());
+    let stream_result: Result<(), String> = async {
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| e.to_string())?;
+            seen = seen.saturating_add(chunk.len() as u64);
+            if seen > MAX_ARCHIVE_BYTES {
+                return Err("Client zip is implausibly large".into());
+            }
+            out.write_all(&chunk).await.map_err(|e| e.to_string())?;
+            emit("files", "Downloading the Soul Client pack…".into(), seen, total.max(seen));
         }
-        out.write_all(&chunk).await.map_err(|e| e.to_string())?;
-        emit("files", "Downloading the Soul Client pack…".into(), seen, total.max(seen));
+        out.flush().await.map_err(|e| e.to_string())?;
+        Ok(())
     }
-    out.flush().await.map_err(|e| e.to_string())?;
+    .await;
     drop(out);
+    if let Err(e) = stream_result {
+        // Never leave a half-written .part behind after a failure.
+        let _ = tokio::fs::remove_file(&tmp).await;
+        return Err(e);
+    }
     tokio::fs::rename(&tmp, dest).await.map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -347,13 +380,25 @@ pub async fn install(
     }
 
     let zip_url = format!("{}/{}", crate::remote::RAW_BASE, entry.zip.trim_matches('/'));
-    // Fail before creating anything if the build was never uploaded.
-    http.head(&zip_url)
-        .send()
-        .await
-        .map_err(|e| format!("Couldn't reach the Soul Client build: {e}"))?
-        .error_for_status()
-        .map_err(|_| "This Soul Client build isn't published yet — try again once it is uploaded".to_string())?;
+    // A local build in <data>/client/<zip path> is used as-is (offline /
+    // self-hosted); otherwise fail before creating anything when the build
+    // was never uploaded to the repo.
+    let local_zip = {
+        // Accept both <data>/client/version-x/... (a copied client folder)
+        // and <data>/client/version-x/... with the full zip path preserved.
+        let rel = entry.zip.trim_start_matches('/').trim_start_matches("client/");
+        [root.join("client").join(rel), root.join(entry.zip.trim_matches('/'))]
+            .into_iter()
+            .find(|p| p.is_file())
+    };
+    if local_zip.is_none() {
+        http.head(&zip_url)
+            .send()
+            .await
+            .map_err(|e| format!("Couldn't reach the Soul Client build: {e}"))?
+            .error_for_status()
+            .map_err(|_| "This Soul Client build isn't published yet — try again once it is uploaded".to_string())?;
+    }
 
     // The index carries enough truth to create the Space right away.
     let manifest_stub = SoulManifest {
@@ -425,7 +470,7 @@ pub async fn install(
                 );
             }
         });
-    tauri::async_runtime::spawn(client_install_worker(app, http, root, space.clone(), entry, zip_url, archive_path, download_emit));
+    tauri::async_runtime::spawn(client_install_worker(app, http, root, space.clone(), entry, zip_url, archive_path, download_emit, local_zip));
     Ok(space)
 }
 
@@ -438,6 +483,7 @@ async fn client_install_worker(
     zip_url: String,
     archive_path: PathBuf,
     download_emit: std::sync::Arc<dyn Fn(&str, String, u64, u64) + Send + Sync>,
+    local_zip: Option<PathBuf>,
 ) {
     use tauri::Emitter;
     let sid = space.id.clone();
@@ -455,7 +501,18 @@ async fn client_install_worker(
         );
     };
 
-    if let Err(e) = download_archive(&http, &zip_url, &archive_path, download_emit).await {
+    if let Some(local) = &local_zip {
+        emit("files", "Using the local Soul Client build…".into(), 0, 0);
+        if let Some(parent) = archive_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Err(e) = std::fs::copy(local, &archive_path).map(|_| ()) {
+            let message = format!("Couldn't use the local client build: {e}");
+            emit("error", message.clone(), 0, 0);
+            crate::record_log(&app, &root, "error", "soulclient", &message);
+            return;
+        }
+    } else if let Err(e) = download_archive(&http, &zip_url, &archive_path, download_emit).await {
         emit("error", e.clone(), 0, 0);
         crate::record_log(&app, &root, "error", "soulclient", &e);
         return;
@@ -565,6 +622,36 @@ mod tests {
             project_id: project_id.into(),
             title: title.into(),
         }
+    }
+
+    #[test]
+    fn bundled_versions_parse_and_merge() {
+        let bundled = parse_versions(BUNDLED_VERSIONS);
+        assert!(bundled.len() >= 4, "expected the shipped client builds, got {}", bundled.len());
+        assert!(bundled.iter().any(|v| v.mc_version == "1.21.1"));
+        assert!(bundled.iter().all(|v| v.zip.starts_with("client/version-")));
+
+        // malformed input never kills the list
+        assert!(parse_versions("not json").is_empty());
+        assert!(parse_versions(r#"{"versions":[{"id":"x","name":"x","mcVersion":"1.21.1","zip":"../evil"}]}"#).is_empty());
+
+        let mut list = vec![bundled[0].clone()];
+        let mut replacement = bundled[0].clone();
+        replacement.name = "Updated".into();
+        let extra = SoulClientVersion {
+            id: "9.9".into(),
+            name: "New".into(),
+            mc_version: "9.9".into(),
+            loader_version: String::new(),
+            zip: "client/version-9.9/soul-client.zip".into(),
+            mod_count: 0,
+            released: String::new(),
+            notes: String::new(),
+        };
+        merge_versions(&mut list, vec![replacement, extra]);
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0].name, "Updated");
+        assert_eq!(list[1].id, "9.9");
     }
 
     #[test]

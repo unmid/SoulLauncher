@@ -117,6 +117,7 @@ async fn download_one(
             Err(e) => {
                 last_err = format!("{e} (attempt {attempt}/{retries})");
                 let _ = std::fs::remove_file(&task.dest);
+                let _ = std::fs::remove_file(task.dest.with_extension("part"));
                 tokio::time::sleep(std::time::Duration::from_millis(400 * attempt as u64)).await;
             }
         }

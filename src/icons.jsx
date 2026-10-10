@@ -134,11 +134,25 @@ const LOADER_LOGO = {
   forge: './icons/loader/forge.png',
   neoforge: './icons/loader/neoforge.png',
   optifine: './icons/loader/optifine.png',
+  oneclient: './icons/loader/oneclient.png',
 }
 
 const LOADER_LABELS = {
   soul: 'Soul Client', vanilla: 'Vanilla', fabric: 'Fabric', quilt: 'Quilt',
-  forge: 'Forge', neoforge: 'NeoForge', optifine: 'OptiFine',
+  forge: 'Forge', neoforge: 'NeoForge', optifine: 'OptiFine', oneclient: 'OneClient',
+}
+
+/* Brand hue per loader — used to color-code tags, wizard cards and Space
+   cards so software is recognizable at a glance. */
+export const LOADER_COLORS = {
+  soul: '#5eead4',
+  vanilla: '#AFBACD',
+  fabric: '#E3B341',
+  quilt: '#A78BFA',
+  forge: '#8FA8C6',
+  neoforge: '#F08A2D',
+  optifine: '#7DD3FC',
+  oneclient: '#3D7BFA',
 }
 
 const LogoMark = (src, label) => function LoaderMarkInner({ size = 28, className, style }) {
@@ -165,6 +179,7 @@ export const LOADER_META = {
   forge: { label: 'Forge', desc: 'The classic modding API' },
   neoforge: { label: 'NeoForge', desc: 'Community-driven Forge fork' },
   optifine: { label: 'OptiFine', desc: 'FPS boost & zoom' },
+  oneclient: { label: 'OneClient', desc: 'Polyfrost FPS + QoL client, one click' },
 }
 
 // --- space icons (real Minecraft block art, untouched) ---

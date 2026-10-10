@@ -104,9 +104,9 @@ pub fn breakdown(root: &PathBuf) -> Vec<StorageItem> {
         &mut items,
         "logs",
         "Game logs",
-        root.clone(),
+        root.join("logs"),
         true,
-        "soul-game.log files left after playing. Safe to delete.",
+        "Launcher and game logs. Safe to delete.",
     );
     items
 }
@@ -118,6 +118,12 @@ pub fn clean_junk(root: &PathBuf) -> u64 {
     freed += dir_size(&cache);
     let _ = std::fs::remove_dir_all(&cache);
     let _ = std::fs::create_dir_all(&cache);
+
+    // launcher logs (soul.log) — the Storage tab lists these as junk too
+    let logs = root.join("logs");
+    freed += dir_size(&logs);
+    let _ = std::fs::remove_dir_all(&logs);
+    let _ = std::fs::create_dir_all(&logs);
 
     // remove per-space game logs + crash dumps
     if let Ok(spaces) = std::fs::read_dir(root.join("spaces")) {
@@ -140,4 +146,52 @@ pub fn clean_junk(root: &PathBuf) -> u64 {
         }
     }
     freed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_root(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("soul-storage-{tag}-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn logs_row_counts_only_the_logs_folder() {
+        let root = temp_root("logs");
+        std::fs::create_dir_all(root.join("logs")).unwrap();
+        std::fs::create_dir_all(root.join("spaces")).unwrap();
+        std::fs::write(root.join("logs").join("soul.log"), vec![0u8; 1024]).unwrap();
+        std::fs::write(root.join("spaces").join("world.bin"), vec![0u8; 4096]).unwrap();
+
+        let items = breakdown(&root);
+        let logs = items.iter().find(|i| i.id == "logs").unwrap();
+        let spaces = items.iter().find(|i| i.id == "spaces").unwrap();
+        assert_eq!(logs.bytes, 1024);
+        assert_eq!(spaces.bytes, 4096);
+        let total: u64 = items.iter().map(|i| i.bytes).sum();
+        assert!(total < 4096 * 2, "logs must not re-count the whole data root");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn clean_junk_clears_logs_and_cache() {
+        let root = temp_root("junk");
+        std::fs::create_dir_all(root.join("logs")).unwrap();
+        std::fs::create_dir_all(root.join("cache")).unwrap();
+        std::fs::write(root.join("logs").join("soul.log"), vec![0u8; 10]).unwrap();
+        std::fs::write(root.join("cache").join("pack.pack"), vec![0u8; 20]).unwrap();
+
+        let freed = clean_junk(&root);
+        assert!(freed >= 30);
+        assert!(root.join("logs").is_dir(), "logs dir is recreated");
+        assert!(root.join("cache").is_dir(), "cache dir is recreated");
+        assert_eq!(std::fs::read_dir(root.join("logs")).unwrap().count(), 0);
+        assert_eq!(std::fs::read_dir(root.join("cache")).unwrap().count(), 0);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

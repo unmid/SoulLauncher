@@ -77,15 +77,15 @@ function AppearanceTab({ settings, saveSettings }) {
             <IconMusic size={16} />
             <div>
               <div className="toggle-title">Music volume</div>
-              <div className="toggle-sub">{Math.round((settings.music_volume ?? 0.35) * 100)}%</div>
+              <div className="toggle-sub">{Math.round((settings.musicVolume ?? 0.35) * 100)}%</div>
             </div>
           </div>
           <input
             type="range" min="0" max="100" step="5"
-            value={Math.round((settings.music_volume ?? 0.35) * 100)}
-            onChange={(e) => set({ music_volume: Number(e.target.value) / 100 })}
+            value={Math.round((settings.musicVolume ?? 0.35) * 100)}
+            onChange={(e) => set({ musicVolume: Number(e.target.value) / 100 })}
             className="volume-slider"
-            style={{ '--fill': `${Math.round((settings.music_volume ?? 0.35) * 100)}%` }}
+            style={{ '--fill': `${Math.round((settings.musicVolume ?? 0.35) * 100)}%` }}
             aria-label="Music volume"
           />
         </div>
@@ -362,9 +362,16 @@ function UpdatesTab({ notify }) {
 
   useEffect(() => {
     check()
+    let cancelled = false
     api.onUpdateProgress((p) => setDownloading({ done: p.done || 0, total: p.total || 0 }))
-      .then((u) => { unlisten.current = u })
-    return () => { if (unlisten.current) unlisten.current() }
+      .then((u) => {
+        if (cancelled) { if (typeof u === 'function') u() } else { unlisten.current = u }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      if (unlisten.current) { unlisten.current(); unlisten.current = null }
+    }
   }, [check])
 
   const runUpdate = async () => {
@@ -517,10 +524,13 @@ function LogsTab({ notify }) {
 
   useEffect(() => {
     let stop = null
+    let cancelled = false
     Promise.resolve(api.onLog((entry) => {
       setEntries((current) => [...current, { ...entry, id: `${entry.timestamp}-${Math.random()}` }].slice(-900))
-    })).then((unsubscribe) => { stop = unsubscribe })
-    return () => { stop?.() }
+    })).then((unsubscribe) => {
+      if (cancelled) { if (typeof unsubscribe === 'function') unsubscribe() } else { stop = unsubscribe }
+    }).catch(() => {})
+    return () => { cancelled = true; if (typeof stop === 'function') stop() }
   }, [])
 
   useEffect(() => {

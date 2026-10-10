@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as skinview3d from 'skinview3d'
 import { api, avatarUrl, openFileDialog } from './api.js'
+import { useExit } from './useExit.js'
 import { IconMicrosoft, IconUser, IconPlus, IconCheck, IconX, IconKey, IconWarn, IconInfo, IconCape, IconRefresh, IconUpload, IconTrash } from './icons.jsx'
 
 /**
@@ -286,6 +287,19 @@ export default function AccountPage({ accounts, settings, activeAccount, refresh
   const [offlineName, setOfflineName] = useState('')
   const [offlineBusy, setOfflineBusy] = useState(false)
   const [removing, setRemoving] = useState(null)
+  const { closing: offlineClosing, close: closeOffline } = useExit(() => setOfflineOpen(false))
+  const { closing: removeClosing, close: closeRemove } = useExit(() => setRemoving(null))
+
+  useEffect(() => {
+    if (!offlineOpen && !removing) return undefined
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape') return
+      if (offlineOpen) closeOffline()
+      else closeRemove()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [offlineOpen, removing, closeOffline, closeRemove])
 
   const switchTo = async (id) => {
     if (id === settings?.activeAccountId) return
@@ -321,7 +335,7 @@ export default function AccountPage({ accounts, settings, activeAccount, refresh
     try {
       const acc = await api.addOfflineAccount(name)
       await Promise.all([refreshAccounts(), refreshSettings()])
-      setOfflineOpen(false)
+      closeOffline()
       setOfflineName('')
       notify(`Offline account "${acc.username}" added`)
     } catch (e) {
@@ -333,7 +347,7 @@ export default function AccountPage({ accounts, settings, activeAccount, refresh
 
   const remove = async () => {
     const acc = removing
-    setRemoving(null)
+    closeRemove()
     try {
       await api.removeAccount(acc.id)
       await Promise.all([refreshAccounts(), refreshSettings()])
@@ -407,11 +421,11 @@ export default function AccountPage({ accounts, settings, activeAccount, refresh
       <ProfileSection activeAccount={activeAccount} notify={notify} />
 
       {offlineOpen && (
-        <div className="confirm-pop" onClick={() => setOfflineOpen(false)}>
-          <div className="confirm-card" onClick={(e) => e.stopPropagation()}>
+        <div className={`confirm-pop ${offlineClosing ? 'closing' : ''}`} onClick={closeOffline}>
+          <div className={`confirm-card ${offlineClosing ? 'closing' : ''}`} onClick={(e) => e.stopPropagation()}>
             <div className="sheet-head">
               <div className="confirm-title">Offline account</div>
-              <button className="icon-btn" onClick={() => setOfflineOpen(false)}><IconX size={17} /></button>
+              <button className="icon-btn" onClick={closeOffline}><IconX size={17} /></button>
             </div>
             <div className="confirm-text" style={{ textAlign: 'left' }}>Play without a Microsoft sign-in. No skins, capes or Realms — just a name.</div>
             <div className="field" style={{ marginTop: 14, marginBottom: 0 }}>
@@ -426,7 +440,7 @@ export default function AccountPage({ accounts, settings, activeAccount, refresh
               />
             </div>
             <div className="confirm-actions">
-              <button className="btn" onClick={() => setOfflineOpen(false)}>Cancel</button>
+              <button className="btn" onClick={closeOffline}>Cancel</button>
               <button className="btn btn-primary" onClick={addOffline} disabled={offlineBusy || offlineName.trim().length < 3}>
                 {offlineBusy ? <span className="mini-spinner" /> : <IconPlus size={14} />} Add account
               </button>
@@ -436,8 +450,8 @@ export default function AccountPage({ accounts, settings, activeAccount, refresh
       )}
 
       {removing && (
-        <div className="confirm-pop" onClick={() => setRemoving(null)}>
-          <div className="confirm-card" onClick={(e) => e.stopPropagation()}>
+        <div className={`confirm-pop ${removeClosing ? 'closing' : ''}`} onClick={closeRemove}>
+          <div className={`confirm-card ${removeClosing ? 'closing' : ''}`} onClick={(e) => e.stopPropagation()}>
             <div className="confirm-icon warn"><IconWarn size={26} /></div>
             <div className="confirm-title">Remove {removing.username}?</div>
             <div className="confirm-text">
@@ -446,7 +460,7 @@ export default function AccountPage({ accounts, settings, activeAccount, refresh
                 : 'The offline account is deleted. Worlds inside Spaces stay untouched.'}
             </div>
             <div className="confirm-actions">
-              <button className="btn" onClick={() => setRemoving(null)}>Keep it</button>
+              <button className="btn" onClick={closeRemove}>Keep it</button>
               <button className="btn btn-danger" onClick={remove}>Remove</button>
             </div>
           </div>

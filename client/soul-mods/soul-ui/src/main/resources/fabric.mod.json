@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "soulclient",
+  "version": "${version}",
+  "name": "Soul Client UI",
+  "description": "Soul Client's in-game shell: branded title screen, heavy pause menu, Soul Menu overlay (Right Shift) and multiplayer chrome.",
+  "authors": [
+    "Soul Client"
+  ],
+  "contact": {
+    "homepage": "https://github.com/unmid/SoulLauncher",
+    "sources": "https://github.com/unmid/SoulLauncher"
+  },
+  "license": "GPL-3.0-only",
+  "icon": "assets/soulclient/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.soulclient.ui.SoulClientUI"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "${mc}",
+    "java": ">=21"
+  }
+}

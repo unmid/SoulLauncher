@@ -41,7 +41,9 @@ export const api = {
     }
     const versions = await invoke('list_loader_versions', { loader, mcVersion })
     const list = Array.isArray(versions) ? versions : []
-    loaderVersionCache.set(key, list)
+    // Never cache an empty answer: one transient failure (or an offline
+    // moment) would hide every version until the app restarts.
+    if (list.length > 0) loaderVersionCache.set(key, list)
     return list
   },
   listInstalledVersions: () => isTauriRuntime() ? invoke('list_installed_versions') : Promise.resolve([]),
@@ -58,8 +60,8 @@ export const api = {
   // Members share ONE servers.dat (gzipped NBT) + ONE options.txt via
   // OS symlinks to storage/categories/<id>/shared/ (copy fallback).
   listCategories: () => isTauriRuntime() ? invoke('list_categories') : Promise.resolve([]),
-  createCategory: (name, color) => invoke('create_category', { name, color }),
-  renameCategory: (categoryId, name, color) => invoke('rename_category', { categoryId, name, color }),
+  createCategory: (name) => invoke('create_category', { name }),
+  renameCategory: (categoryId, name) => invoke('rename_category', { categoryId, name }),
   deleteCategory: (categoryId) => invoke('delete_category', { categoryId }),
   setSpaceCategory: (spaceId, categoryId) => invoke('set_space_category', { spaceId, categoryId }),
   launchArgs: () => isTauriRuntime() ? invoke('launch_args') : Promise.resolve([]),
@@ -79,6 +81,23 @@ export const api = {
   // modpacks + local files
   installModpack: (source, projectId, mcVersion = null) => invoke('install_modpack', { source, projectId, mcVersion }),
   importModpackFile: (path) => invoke('import_modpack_file', { path }),
+  // Minecraft versions a Modrinth modpack ships for, newest first. Used to
+  // offer client packs (OneClient) only for versions they actually support.
+  listModpackMcVersions: async (projectId) => {
+    try {
+      const r = await fetch(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`)
+      if (!r.ok) throw new Error('Modrinth unreachable')
+      const list = await r.json()
+      const seen = new Set()
+      for (const v of Array.isArray(list) ? list : []) {
+        for (const gv of v.game_versions || []) seen.add(gv)
+      }
+      const out = [...seen].sort(compareVersionIdsDesc)
+      if (out.length) return out
+    } catch {}
+    // Offline / API hiccup: last known OneClient targets.
+    return ['26.3', '26.2', '26.1.2', '1.21.11', '1.21.10', '1.21.1']
+  },
   importContentFiles: (spaceId, paths, kind = null, world = null) =>
     invoke('import_content_files', { spaceId, paths, kind, world }),
   listSpaceWorlds: (spaceId) => isTauriRuntime() ? invoke('list_space_worlds', { spaceId }) : Promise.resolve([]),
@@ -148,6 +167,17 @@ export const api = {
 }
 
 export { open as openFileDialog, save as saveFileDialog }
+
+// Numeric-descending compare for version ids like "26.3", "1.21.11", "1.8.9".
+function compareVersionIdsDesc(a, b) {
+  const pa = String(a).split('.').map((x) => parseInt(x, 10) || 0)
+  const pb = String(b).split('.').map((x) => parseInt(x, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pb[i] || 0) - (pa[i] || 0)
+    if (d !== 0) return d
+  }
+  return 0
+}
 
 export function avatarUrl(username, size = 64) {
   return `https://mc-heads.net/avatar/${encodeURIComponent(username)}/${size}`

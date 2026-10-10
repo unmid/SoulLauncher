@@ -60,6 +60,7 @@ async fn try_get(http: &reqwest::Client, url: &str, token: bool) -> Result<Strin
 ///   2. the same API unauthenticated (the repo is public),
 ///   3. raw.githubusercontent.com with a cache-busting query,
 ///   4. the last disk cache (offline).
+///
 /// Every successful network fetch refreshes the disk cache, so the live
 /// content always wins and the cache can never hide newer updates.
 pub async fn fetch_updater_file(
@@ -109,7 +110,7 @@ pub async fn fetch_home_pages(http: &reqwest::Client, root: &PathBuf) -> Vec<Str
                     .filter_map(|p| p.as_str())
                     .take(8)
                     .map(|p| p.trim().trim_matches(|c| c == '/' || c == '\\').to_string())
-                    .filter(|p| !p.is_empty() && !p.contains("..") && !p.contains(|c| c == '/' || c == '\\'))
+                    .filter(|p| !p.is_empty() && !p.contains("..") && !p.contains(['/', '\\']))
                     .collect();
                 if !names.is_empty() {
                     let mut set = tokio::task::JoinSet::new();
@@ -202,7 +203,7 @@ pub async fn cf_download_url(
 const B64: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 pub fn base64_encode(data: &[u8]) -> String {
-    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
         let b0 = chunk[0] as u32;
         let b1 = *chunk.get(1).unwrap_or(&0) as u32;

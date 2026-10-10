@@ -1,0 +1,94 @@
+buildscript {
+    repositories {
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath 'net.fabricmc:fabric-loom:1.18.2'
+    }
+}
+
+def mcver = (findProperty('mcver') ?: '1.21.1').toString()
+
+def profiles = [
+    '1.21.1' : [yarn: '1.21.1+build.3',  fabric: '0.102.0+1.21.1',  loader: '0.16.9', tree: 'yarn',   ver: 'v1_21_1'],
+    '1.21.10': [yarn: '1.21.10+build.3', fabric: '0.138.4+1.21.10', loader: '0.16.9', tree: 'yarn',   ver: 'v1_21_10'],
+    '1.21.11': [yarn: '1.21.11+build.6', fabric: '0.141.6+1.21.11', loader: '0.16.9', tree: 'yarn',   ver: 'v1_21_11'],
+    '26.1.2' : [yarn: null,              fabric: '0.155.3+26.1.2',  loader: '0.19.5', tree: 'mojmap', ver: 'v26_1_2'],
+]
+def prof = profiles[mcver]
+if (prof == null) {
+    throw new GradleException("Unknown -Pmcver='${mcver}'. Expected 1.21.1, 1.21.10, 1.21.11 or 26.1.2")
+}
+def javaRelease = mcver.startsWith('26.') ? 25 : 21
+
+// Minecraft 26.1+ is unobfuscated and needs the new plugin id.
+if (prof.tree == 'mojmap') {
+    apply plugin: 'net.fabricmc.fabric-loom'
+} else {
+    apply plugin: 'fabric-loom'
+}
+apply plugin: 'java'
+
+version = project.mod_version
+group = project.maven_group
+
+// Keep every target version's jar side by side: build/<mcver>/libs/...
+layout.buildDirectory = layout.projectDirectory.dir("build/${mcver}")
+
+base {
+    archivesName = project.archives_base_name
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ["src/common/java", "src/${prof.tree}/java", "src/${prof.ver}/java"]
+        }
+        resources {
+            srcDirs = ['src/main/resources']
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${mcver}"
+    if (prof.yarn != null) {
+        mappings "net.fabricmc:yarn:${prof.yarn}:v2"
+    }
+    def modConf = prof.tree == 'mojmap' ? 'implementation' : 'modImplementation'
+    add(modConf, "net.fabricmc:fabric-loader:${prof.loader}")
+    add(modConf, "net.fabricmc.fabric-api:fabric-api:${prof.fabric}")
+}
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'mc', mcver
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version, 'mc': mcver
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = javaRelease
+    it.options.encoding = 'UTF-8'
+}
+
+java {
+    sourceCompatibility = JavaVersion.toVersion(javaRelease)
+    targetCompatibility = JavaVersion.toVersion(javaRelease)
+}
+
+jar {
+    archiveClassifier = mcver
+}
+
+// Older loom drops the classifier on the remapped jar — pin it so every
+// version's runtime-ready jar is <mod>-<version>-<mcver>.jar in libs/.
+tasks.withType(net.fabricmc.loom.task.RemapJarTask).configureEach {
+    archiveClassifier = mcver
+}

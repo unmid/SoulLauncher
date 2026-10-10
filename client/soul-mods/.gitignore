@@ -1,0 +1,7 @@
+# Gradle / Loom build output
+build/
+.gradle/
+run/
+
+# Loom cache
+.loom-cache/
